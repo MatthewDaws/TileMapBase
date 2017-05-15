@@ -11,7 +11,6 @@ def test_init(cache, dbexists):
     tiles._sqcache = None
     tiles.init()
 
-    dbexists.assert_called()
     name = dbexists.call_args[0][0]
     cache.assert_called_with(None, name)
 
