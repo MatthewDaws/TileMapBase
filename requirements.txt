@@ -1,5 +1,6 @@
 # Only for testing
 pytest
+codecov
 
 # Optional
 pyproj
