@@ -1,0 +1,9 @@
+# Only for testing
+pytest
+
+# Optional
+pyproj
+
+# Needed for library to work
+requests
+pillow
