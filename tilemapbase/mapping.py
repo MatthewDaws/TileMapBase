@@ -13,6 +13,11 @@ area or length, but is convenient.  We follow these conventions:
   values cannot be represented in Web Mercator).  This is the north/south
   location from the equator.  Positive is to the north.
 
+Once projected, the x coordinate varies between 0 and 1, from -180 degrees west
+to 180 degrees east.  The y coordinate varies between 0 and 1, from (about) 85
+degrees north to -85 degrees south.  Hence the natural ordering from latitude
+to y coordinate is reversed.
+
 Web Mercator agrees with the projections EPSG:3857 and EPSG:3785 up to
 rescaling and reflecting in the y coordinate.
 
