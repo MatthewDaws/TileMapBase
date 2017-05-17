@@ -38,6 +38,7 @@ import requests as _requests
 import PIL.Image as _Image
 import logging as _logging
 
+# Singleton
 _sqcache = None
 
 def init(cache_filename = None, create = False):
@@ -69,7 +70,7 @@ def init(cache_filename = None, create = False):
             """Check that the filename is correct."""
         raise Exception(msg.format(cache_filename))
 
-    _sqcache = _cache.SQLiteCache(None, cache_filename)
+    _sqcache = _cache.SQLiteCache(cache_filename)
 
 def close():
     """Shutdown the cache.  Call to close the connection to the database
@@ -140,15 +141,16 @@ class Tiles():
     def _request_http(self, request_string):
         parts = request_string.split("#")
         if parts[0] != self.name:
-            raise ValueError("Build for '{}' but asked to decode '{}'".format(self.name, part[0]))
+            raise ValueError("Build for '{}' but asked to decode '{}'".format(self.name, parts[0]))
         x, y, zoom = [int(t) for t in parts[1:]]
         return self.request.format(x=x, y=y, zoom=zoom)
 
     # Lazy initialisation
     def _get_cache(self):
         if self._cache is None:
-            self._cache = _get_cache()
-            self._cache.executor = _TilesExecutor(self)
+            dbcache = _get_cache()
+            executor = _TilesExecutor(self)
+            self._cache = _cache.Cache(executor, dbcache)
         return self._cache
 
 

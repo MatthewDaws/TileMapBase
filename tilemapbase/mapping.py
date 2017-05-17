@@ -341,8 +341,11 @@ def extent_from_frame(frame, pixel_width, buffer):
         maximum = to_lonlat(*_from_3857(bounds[2], bounds[3]))
         bounds = [minimum[0], minimum[1], maximum[0], maximum[1]]
 
-    width = (bounds[2] - bounds[0]) * (1 + buffer / 100) / 2
-    height = (bounds[3] - bounds[1]) * (1 + buffer / 100) / 2
+    width, height = bounds[2] - bounds[0], bounds[3] - bounds[1]
+    buffer = max(width, height) * buffer / 100
+
+    width = (bounds[2] - bounds[0]) / 2 + buffer
+    height = (bounds[3] - bounds[1]) / 2 + buffer
     x, y = (bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2
     e = extent(x - width, x + width, y - height, y + height, pixel_width, None)
     if proj == 3857:

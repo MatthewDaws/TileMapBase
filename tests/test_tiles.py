@@ -13,7 +13,7 @@ def test_init(cache, dbexists):
 
     assert( dbexists.called )
     name = dbexists.call_args[0][0]
-    cache.assert_called_with(None, name)
+    cache.assert_called_with(name)
 
 @mock.patch("tilemapbase.cache.database_exists")
 @mock.patch("tilemapbase.cache.SQLiteCache")
@@ -31,31 +31,29 @@ def image():
     with open(filename, "br") as f:
         return f.read()
 
-@mock.patch("tilemapbase.tiles._get_cache")
-def test_Tiles(cache, image):
-    cache.return_value = mock.MagicMock()
-    cache.return_value.fetch.return_value = image
+import collections
+Response = collections.namedtuple("Response", ["ok", "content"])
 
-    t = tiles.Tiles("example{}/{}/{}.jpg", "TEST")
+@mock.patch("tilemapbase.tiles._sqcache")
+@mock.patch("requests.get")
+def test_Tiles(get, sqcache, image):
+    sqcache.get_from_cache.return_value = None
+    get.return_value = Response(True, image)
+
+    t = tiles.Tiles("example{zoom}/{x}/{y}.jpg", "TEST")
     x = t.get_tile(10,20,5)
 
-    assert(cache.return_value.fetch.call_args[0][0] == "TEST#10#20#5")
     assert(x.width == 256)
     assert(x.height == 256)
-
-@mock.patch("requests.get")
-@mock.patch("tilemapbase.tiles._get_cache")
-def test_TilesExecutor(cache, get):
-    t = tiles.Tiles("example{zoom}/{x}/{y}.jpg", "TEST")
-    te = tiles._TilesExecutor(t)
-
-    te.fetch("TEST#10#20#5")
-
     assert(get.call_args[0][0] == "example5/10/20.jpg")
+    assert(sqcache.place_in_cache.call_args[0][0] == "TEST#10#20#5")
 
+@mock.patch("tilemapbase.tiles._sqcache")
 @mock.patch("requests.get")
-@mock.patch("tilemapbase.tiles._get_cache")
-def test_OSM(cache, get):
-    tiles.OSM._get_cache().executor.fetch("OSM#5#10#20")
+def test_OSM(get, sqcache):
+    sqcache.get_from_cache.return_value = None
+    get.return_value = Response(True, None)
+
+    tiles.OSM.get_tile(5,10,20)
 
     assert(get.call_args[0][0] == "http://a.tile.openstreetmap.org/20/5/10.png")
