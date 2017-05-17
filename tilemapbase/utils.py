@@ -9,8 +9,10 @@ Some utility functions.
 
 """
 
-
 def start_logging():
+    """Set the logging system to log to the (real) `stdout`.  Suitable for
+    logging to the console when using a Jupyter notebook, for example.
+    """
     import logging, sys
     logger = logging.getLogger("tilemapbase")
     logger.setLevel(logging.INFO)

@@ -15,6 +15,11 @@ Pure python.  Uses [requests](http://docs.python-requests.org/en/master/) to mak
     python setup.py install
 
 
+## Example
+
+- [Example](notesbooks/Example.ipynb) - Jupyter notebook showing examples.
+
+
 ## OpenStreetMap data
 
 OpenStreetMap Data is "© OpenStreetMap contributors”, see http://www.openstreetmap.org/copyright

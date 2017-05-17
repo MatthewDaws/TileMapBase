@@ -1,7 +1,2 @@
-- Tidy up what gets imported from __init__.py
 - Add some methods to query / extract / clean the DB cache
-- Allow adding axes to a plot in longitude / latitude
-- Allow plotting against EPSG:3857 (easier working with geopandas etc.)
-- Allow passing arbitrary arguments to the Extent.plot() methods, to be passed on to matplotlib.  E.g. `alpha=0.5` etc.
-- I think we want to be sensible and reverse the latitude coords (so min < max !!)
-- Allow passing a geoDataFrame and sensibly choosing the "extent" etc. ??
+- More tests!

@@ -29,6 +29,17 @@ http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
 import math as _math
 import PIL.Image as _Image
 
+_EPSG_RESCALE = 20037508.342789244
+
+def _to_3857(x, y):
+    return ((x - 0.5) * 2 * _EPSG_RESCALE,
+        (0.5 - y) * 2 * _EPSG_RESCALE)
+
+def _from_3857(x, y):
+    xx = 0.5 + (x / _EPSG_RESCALE) * 0.5
+    yy = 0.5 - (y / _EPSG_RESCALE) * 0.5
+    return xx, yy
+
 def project(longitude, latitude):
     """Project the longitude / latitude to the unit square.
 
@@ -71,6 +82,7 @@ class Extent():
         self._zoom = zoom
         self._xmin, self._xmax = xmin, xmax
         self._ymin, self._ymax = ymin, ymax
+        self._project = self._normal_project
 
     @property
     def zoom(self):
@@ -84,32 +96,32 @@ class Extent():
     @property
     def xmin(self):
         """Minimum x value of the region."""
-        return self._xmin
+        return self._project(self._xmin, self._ymin)[0]
 
     @property
     def xmax(self):
         """Maximum x value of the region."""
-        return self._xmax
+        return self._project(self._xmax, self._ymax)[0]
 
     @property
     def xrange(self):
         """A pair of (xmin, xmax)."""
-        return (self._xmin, self._xmax)
+        return (self.xmin, self.xmax)
 
     @property
     def ymin(self):
         """Minimum y value of the region."""
-        return self._ymin
+        return self._project(self._xmin, self._ymin)[1]
 
     @property
     def ymax(self):
         """Maximum y value of the region."""
-        return self._ymax
+        return self._project(self._xmax, self._ymax)[1]
 
     @property
     def yrange(self):
         """A pair of (ymax, ymin).  Inverted so as to work well with `matplotib`."""
-        return (self._ymax, self._ymin)
+        return (self.ymax, self.ymin)
 
     @property
     def xtilemin(self):
@@ -133,6 +145,20 @@ class Extent():
         """
         return int(2 ** self._zoom * self._ymax)
 
+    def _normal_project(self, x, y):
+        """Project from tile space to coords."""
+        return x, y
+
+    def _3857_project(self, x, y):
+        return _to_3857(x, y)
+
+    def project_3857(self):
+        """Change the coordinate system to conform to EPSG:3857 / EPSG:3785
+        which can be useful when working with e.g. geoPandas (or other data
+        which is projected in this way).
+        """
+        self._project = self._3857_project
+
     def _check_download_size(self):
         num_tiles = ( (self.xtilemax + 1 - self.xtilemin) *
             (self.ytilemax + 1 - self.ytilemin) )
@@ -144,7 +170,7 @@ class Extent():
         self.zoom = min(self.zoom, tile_provider.maxzoom)
         return old_zoom
 
-    def plot(self, ax, tile_provider, allow_large = False):
+    def plot(self, ax, tile_provider, allow_large = False, **kwargs):
         """Use these settings to plot the tiles to a `matplotlib` axes.  This
         method repeatedly calls the `imshow` method, which does not lead to the
         highest quality tiling: compare with :method:`plothq`.  Will
@@ -155,6 +181,8 @@ class Extent():
           tiles.
         :param allow_large: If False (default) then don't use more than 128
           tiles.  A guard against spamming the tile server.
+        :param kwargs: Other arguments which will be forwarded to the `imshow`
+          matplotlib method.
         """
         old_zoom = self._adjust_zoom(tile_provider)
         try:
@@ -164,11 +192,9 @@ class Extent():
             for x in range(self.xtilemin, self.xtilemax + 1):
                 for y in range(self.ytilemin, self.ytilemax + 1):
                     tile = tile_provider.get_tile(x, y, self.zoom)
-                    x0 = x / scale
-                    x1 = (x + 1) / scale
-                    y0 = y / scale
-                    y1 = (y + 1) / scale
-                    ax.imshow(tile, interpolation="lanczos", extent=(x0,x1,y1,y0))
+                    x0, y0 = self._project(x / scale, y / scale)
+                    x1, y1 = self._project((x + 1) / scale, (y + 1) / scale)
+                    ax.imshow(tile, interpolation="lanczos", extent=(x0,x1,y1,y0), **kwargs)
             ax.set(xlim = self.xrange, ylim = self.yrange)
         finally:
             self.zoom = old_zoom
@@ -206,7 +232,7 @@ class Extent():
         finally:
             self.zoom = old_zoom
 
-    def plothq(self, ax, tile_provider, allow_large = False):
+    def plothq(self, ax, tile_provider, allow_large = False, **kwargs):
         """Use these settings to plot the tiles to a `matplotlib` axes.  This
         method uses :package:`pillow` to assemble the tiles into a single image
         before using `matplotlib` to display.  This leads to a better image.
@@ -218,16 +244,16 @@ class Extent():
           tiles.
         :param allow_large: If False (default) then don't use more than 128
           tiles.  A guard against spamming the tile server.
+        :param kwargs: Other arguments which will be forwarded to the `imshow`
+          matplotlib method.
         """
         old_zoom = self._adjust_zoom(tile_provider)
         try:
             tile = self.as_one_image(tile_provider, allow_large)
             scale = 2 ** self.zoom
-            x0 = self.xtilemin / scale
-            x1 = (self.xtilemax + 1) / scale
-            y0 = self.ytilemin / scale
-            y1 = (self.ytilemax + 1) / scale
-            ax.imshow(tile, interpolation="lanczos", extent=(x0,x1,y1,y0))
+            x0, y0 = self._project(self.xtilemin / scale, self.ytilemin / scale)
+            x1, y1 = self._project((self.xtilemax + 1) / scale, (self.ytilemax + 1) / scale)
+            ax.imshow(tile, interpolation="lanczos", extent=(x0,x1,y1,y0), **kwargs)
             ax.set(xlim = self.xrange, ylim = self.yrange)
         finally:
             self.zoom = old_zoom
@@ -247,22 +273,29 @@ def extent(longitude_min, longitude_max, latitude_min, latitude_max,
     :param latitude_min:
     :param latitude_max: Range of latitude
     :param pixel_width: Aimed for width, in pixels
-    :param pixel_height: Aimed for height, in pixels
+    :param pixel_height: Aimed for height, in pixels.  If None, then compute
+      automatically to produce a square aspect ratio.
     :param tile_size: The size of tiles from the server, defaults to 256.
 
     :return: An instance of :class:`Extent` giving details of the optimal area.
     """
-    xmin, ymin = project(longitude_min, latitude_min)
-    xmax, ymax = project(longitude_max, latitude_max)
+    xmin, ymin = project(longitude_min, latitude_max)
+    xmax, ymax = project(longitude_max, latitude_min)
     xrange = xmax - xmin
     yrange = ymax - ymin
 
     xscale = xrange / pixel_width
-    yscale = yrange / pixel_height
-    scale = min(xscale, yscale)
+    if pixel_height is not None:
+        yscale = yrange / pixel_height
+        scale = min(xscale, yscale)
+    else:
+        scale = xscale
 
     width = pixel_width * scale / 2
-    height = pixel_height * scale / 2
+    if pixel_height is not None:
+        height = pixel_height * scale / 2
+    else:
+        height = yrange / 2
     xmid = (xmin + xmax) / 2
     ymid = (ymin + ymax) / 2
 
@@ -271,6 +304,50 @@ def extent(longitude_min, longitude_max, latitude_min, latitude_max,
     zoom = max(0, int(-_math.log2(scale * tile_size)))
 
     return Extent(zoom, xmin, xmax, ymin, ymax)
+
+def _parse_crs(crs):
+    if crs is None:
+        return 4326
+    try:
+        parts = crs["init"].split(":")
+        if parts[0].upper() != "EPSG":
+            raise ValueError("Unknown projection '{}'".format(crs["init"]))
+        code = int(parts[1])
+        if code == 4326:
+            return 4326
+        if code == 3857 or code == 3785:
+            return 3857
+        raise ValueError("Unsupported projection '{}'".format(crs["init"]))
+    except Exception:
+        raise ValueError("Unknown crs data: '{}'".format(crs))
+
+def extent_from_frame(frame, pixel_width, buffer):
+    """Minimal interface to compute an :class:`Extent` from a geoPandas
+    DataFrame.
+    
+    The dataframe must either have no projection set (`frame.crs == None`)
+    or be projected in EPSG:4326, or be projected in EPSG:3857 / 3785.
+
+    :param frame: geoDataFrame to compute bounds from.
+    :param pixel_width: Aimed for width.  Height will be computed from the
+      bounds.
+    :param buffer: The percentage buffer to apply around the bounds.  Pass e.g.
+      10 to expand the region by 10%.
+    """
+    proj = _parse_crs(frame.crs)
+    bounds = frame.total_bounds
+    if proj == 3857:
+        minimum = to_lonlat(*_from_3857(bounds[0], bounds[1]))
+        maximum = to_lonlat(*_from_3857(bounds[2], bounds[3]))
+        bounds = [minimum[0], minimum[1], maximum[0], maximum[1]]
+
+    width = (bounds[2] - bounds[0]) * (1 + buffer / 100) / 2
+    height = (bounds[3] - bounds[1]) * (1 + buffer / 100) / 2
+    x, y = (bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2
+    e = extent(x - width, x + width, y - height, y + height, pixel_width, None)
+    if proj == 3857:
+        e.project_3857()
+    return e
 
 
 try:
@@ -286,18 +363,12 @@ if _pyproj is not None:
 
 def project_3785(longitude, latitude):
     """Project using :module:`pyproj` and EPSG:3785."""
-    size = 20037508.342789244
     global _proj3785
     xx, yy = _proj3785(longitude, latitude)
-    xx = 0.5 + (xx / size) * 0.5
-    yy = 0.5 - (yy / size) * 0.5
-    return xx, yy
+    return _from_3857(xx, yy)
 
 def project_3857(longitude, latitude):
     """Project using :module:`pyproj` and EPSG:3857."""
-    size = 20037508.342789244
     global _proj3857
     xx, yy = _proj3857(longitude, latitude)
-    xx = 0.5 + (xx / size) * 0.5
-    yy = 0.5 - (yy / size) * 0.5
-    return xx, yy
+    return _from_3857(xx, yy)
