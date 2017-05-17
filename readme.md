@@ -17,7 +17,7 @@ Pure python.  Uses [requests](http://docs.python-requests.org/en/master/) to mak
 
 ## Example
 
-- [Example](notesbooks/Example.ipynb) - Jupyter notebook showing examples.
+- [Example](notebooks/Example.ipynb) - Jupyter notebook showing examples.
 
 
 ## OpenStreetMap data
