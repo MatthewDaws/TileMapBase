@@ -305,18 +305,21 @@ def extent(longitude_min, longitude_max, latitude_min, latitude_max,
 
     return Extent(zoom, xmin, xmax, ymin, ymax)
 
+_NATIVE_LONLAT = 4326
+_WEB_MERCATOR = 3857
+
 def _parse_crs(crs):
     if crs is None:
-        return 4326
+        return _NATIVE_LONLAT
     try:
         parts = crs["init"].split(":")
         if parts[0].upper() != "EPSG":
             raise ValueError("Unknown projection '{}'".format(crs["init"]))
         code = int(parts[1])
-        if code == 4326:
-            return 4326
+        if code == _NATIVE_LONLAT:
+            return _NATIVE_LONLAT
         if code == 3857 or code == 3785:
-            return 3857
+            return _WEB_MERCATOR
         raise ValueError("Unsupported projection '{}'".format(crs["init"]))
     except Exception:
         raise ValueError("Unknown crs data: '{}'".format(crs))
@@ -336,7 +339,7 @@ def extent_from_frame(frame, pixel_width, buffer):
     """
     proj = _parse_crs(frame.crs)
     bounds = frame.total_bounds
-    if proj == 3857:
+    if proj == _WEB_MERCATOR:
         minimum = to_lonlat(*_from_3857(bounds[0], bounds[1]))
         maximum = to_lonlat(*_from_3857(bounds[2], bounds[3]))
         bounds = [minimum[0], minimum[1], maximum[0], maximum[1]]
@@ -348,9 +351,39 @@ def extent_from_frame(frame, pixel_width, buffer):
     height = (bounds[3] - bounds[1]) / 2 + buffer
     x, y = (bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2
     e = extent(x - width, x + width, y - height, y + height, pixel_width, None)
-    if proj == 3857:
+    if proj == _WEB_MERCATOR:
         e.project_3857()
     return e
+
+def points_from_frame(frame):
+    """Takes the geometry from the passed data frame, looks for point objects
+    and extracts the coordinates.  Useful for ploting, as doing this is usually
+    much faster than using the geoPandas `plot` methods.
+    
+    The dataframe must either have no projection set (`frame.crs == None`)
+    or be projected in EPSG:4326, or be projected in EPSG:3857 / 3785.
+    Returned coordinates will then either be projected to the unit square,
+    or to EPSG:3857 / 3785, as appropriate.
+    
+    Typical usage might be `pyplot.scatter(*point_from_frame(frame))`
+    
+    :param frame; A :class:`GeoDataFrame` instance, or other object with a
+      `geometry` property.
+    
+    :return: Pair (x,y) of lists of coordinates.
+    """
+    proj = _parse_crs(frame.crs)
+    xcs, ycs = [], []
+    if proj == _NATIVE_LONLAT:
+        for point in frame.geometry:
+            c = project(*point.coords[0])
+            xcs.append(c[0])
+            ycs.append(c[1])
+    else:
+        for point in frame.geometry:
+            xcs.append(point.coords[0][0])
+            ycs.append(point.coords[0][1])
+    return xcs, ycs
 
 
 try:
