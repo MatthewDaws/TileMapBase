@@ -24,6 +24,10 @@ rescaling and reflecting in the y coordinate.
 For more information, see for example
 http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
 
+Typical workflow is to use one of the `extent` methods to construct an
+:class:`Extent` object.  This stores details of a rectangle of web mercator
+space and how to draw this space.  This object can then be used to plot the
+basemap to a `matplotlib` axes object.
 """
 
 import math as _math
@@ -41,7 +45,7 @@ def _from_3857(x, y):
     return xx, yy
 
 def project(longitude, latitude):
-    """Project the longitude / latitude to the unit square.
+    """Project the longitude / latitude coords to the unit square.
 
     :param longitude: In degrees, between -180 and 180
     :param latitude: In degrees, between -85 and 85
@@ -54,9 +58,8 @@ def project(longitude, latitude):
     ytile = (1.0 - _math.log(_math.tan(lat_rad) + (1 / _math.cos(lat_rad))) / _math.pi) / 2.0
     return (xtile, ytile)
 
-
 def to_lonlat(x, y):
-    """Inverse project from "web mercator" back to longitude, latitude.
+    """Inverse project from "web mercator" coords back to longitude, latitude.
 
     :param x: The x coordinate, between 0 and 1.
     :param y: The y coordinate, between 0 and 1.
@@ -86,12 +89,8 @@ class Extent():
 
     @property
     def zoom(self):
-        """The suggested zoom level.  May be changed."""
+        """The suggested zoom level."""
         return self._zoom
-
-    @zoom.setter
-    def zoom(self, value):
-        self._zoom = value
 
     @property
     def xmin(self):
@@ -120,7 +119,9 @@ class Extent():
 
     @property
     def yrange(self):
-        """A pair of (ymax, ymin).  Inverted so as to work well with `matplotib`."""
+        """A pair of (ymax, ymin).  Inverted so as to work well with
+        `matplotib`.
+        """
         return (self.ymax, self.ymin)
 
     @property
@@ -159,6 +160,11 @@ class Extent():
         """
         self._project = self._3857_project
 
+    def project_web_mercator(self):
+        """Change the coordinate system back to the default, the unit square.
+        """
+        self._project = self._normal_project
+
     def _check_download_size(self):
         num_tiles = ( (self.xtilemax + 1 - self.xtilemin) *
             (self.ytilemax + 1 - self.ytilemin) )
@@ -167,13 +173,13 @@ class Extent():
 
     def _adjust_zoom(self, tile_provider):
         old_zoom = self.zoom
-        self.zoom = min(self.zoom, tile_provider.maxzoom)
+        self._zoom = min(self.zoom, tile_provider.maxzoom)
         return old_zoom
 
-    def plot(self, ax, tile_provider, allow_large = False, **kwargs):
+    def plotlq(self, ax, tile_provider, allow_large = False, **kwargs):
         """Use these settings to plot the tiles to a `matplotlib` axes.  This
         method repeatedly calls the `imshow` method, which does not lead to the
-        highest quality tiling: compare with :method:`plothq`.  Will
+        highest quality tiling: compare with :method:`plot`.  Will
         intelligently use the maximum zoom which the tile provider can give.
 
         :param ax: The axes object to plot to.
@@ -197,7 +203,7 @@ class Extent():
                     ax.imshow(tile, interpolation="lanczos", extent=(x0,x1,y1,y0), **kwargs)
             ax.set(xlim = self.xrange, ylim = self.yrange)
         finally:
-            self.zoom = old_zoom
+            self._zoom = old_zoom
 
     def as_one_image(self, tile_provider, allow_large = False):
         """Use these settings to assemble tiles into a single image.  Will
@@ -230,9 +236,9 @@ class Extent():
                     index += 1
             return out
         finally:
-            self.zoom = old_zoom
+            self._zoom = old_zoom
 
-    def plothq(self, ax, tile_provider, allow_large = False, **kwargs):
+    def plot(self, ax, tile_provider, allow_large = False, **kwargs):
         """Use these settings to plot the tiles to a `matplotlib` axes.  This
         method uses :package:`pillow` to assemble the tiles into a single image
         before using `matplotlib` to display.  This leads to a better image.
@@ -256,8 +262,27 @@ class Extent():
             ax.imshow(tile, interpolation="lanczos", extent=(x0,x1,y1,y0), **kwargs)
             ax.set(xlim = self.xrange, ylim = self.yrange)
         finally:
-            self.zoom = old_zoom
+            self._zoom = old_zoom
 
+    def plothq(self, ax, tile_provider, allow_large = False, **kwargs):
+        """Depreciated.  Use :method:`plot` instead."""
+        self.plot(ax, tile_provider, allow_large, **kwargs)
+
+    def with_centre(self, longitude, latitude):
+        """Create a new :class:`Extent` object with the centre the the given
+        longitude / latitude.
+        """
+        xc, yc = project(longitude, latitude)
+        oldxc = (self._xmin + self._xmax) / 2
+        oldyc = (self._ymin + self._ymax) / 2
+        return Extent(self._zoom, self._xmin + xc - oldxc, self._xmax + xc - oldxc,
+            self._ymin + yc - oldyc, self._ymax + yc - oldyc)
+
+    def with_zoom(self, zoom):
+        """Create a new :class:`Extent` object with the new zoom level.
+        """
+        return Extent(zoom, self._xmin, self._xmax, self._ymin, self._ymax)
+        
 
 def extent(longitude_min, longitude_max, latitude_min, latitude_max,
         pixel_width, pixel_height, tile_size=256):
