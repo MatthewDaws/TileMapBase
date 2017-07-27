@@ -26,8 +26,8 @@ http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
 
 Typical workflow is to use one of the `extent` methods to construct an
 :class:`Extent` object.  This stores details of a rectangle of web mercator
-space and how to draw this space.  This object can then be used to plot the
-basemap to a `matplotlib` axes object.
+space.  Then construct a :class:`Plotter` object to actually draw the tiles.
+This object can then be used to plot the basemap to a `matplotlib` axes object.
 """
 
 import math as _math
@@ -73,14 +73,24 @@ def to_lonlat(x, y):
 
 class Extent():
     """Store details about an area of web mercator space.  Can be switched to
-    be projected in EPSG:3857 / EPSG:3785.
+    be projected in EPSG:3857 / EPSG:3785.  We allow the x range outside of
+    [0,1] to allow working across the "boundary" as 1 (i.e. we treat the
+    coordinates as being topologically a cylinder and identify (0,y) and (1,y)
+    for all y).
 
     :param xmin:
-    :param xmax: The range of the x coordinates, between 0 and 1.
+    :param xmax: The range of the x coordinates, between 0 and 1. (But see
+      note above).
     :param ymin:
     :param ymax: The range of the y coordinates, between 0 and 1.
+    :param projection_type: Internal use only, see :meth:`to_project_3857`
+      and :meth:`to_project_web_mercator` instead.
     """
     def __init__(self, xmin, xmax, ymin, ymax, projection_type="normal"):
+        if not (xmin < xmax):
+            raise ValueError("xmin < xmax.")
+        if ymin < 0 or ymax > 1 or not (ymin < ymax):
+            raise ValueError("Need 0 < ymin < ymax < 1.")
         self._xmin, self._xmax = xmin, xmax
         self._ymin, self._ymax = ymin, ymax
         if projection_type == "normal":
@@ -125,8 +135,7 @@ class Extent():
         
     @staticmethod
     def from_lonlat(longitude_min, longitude_max, latitude_min, latitude_max):
-        """Map the box, in longitude/latitude space, to the web mercator
-        projection."""
+        """Construct a new instance from longitude/latitude space."""
         xmin, ymin = project(longitude_min, latitude_max)
         xmax, ymax = project(longitude_max, latitude_min)
         return Extent(xmin, xmax, ymin, ymax)
@@ -143,6 +152,7 @@ class Extent():
 
     @property
     def width(self):
+        """The width of the region."""
         return self.xmax - self.xmin
 
     @property
@@ -162,6 +172,7 @@ class Extent():
 
     @property
     def height(self):
+        """The height of the region."""
         return self.ymax - self.ymin
 
     @property
@@ -176,7 +187,7 @@ class Extent():
                       self.xmax, self.ymax, self._project_str)
 
     def clone(self, projection_type=None):
-        """A copy"""
+        """A copy."""
         if projection_type is None:
             projection_type = self._project_str
         return Extent(self._xmin, self._xmax, self._ymin, self._ymax, projection_type)
@@ -206,12 +217,20 @@ class Extent():
 
     def with_centre(self, xc, yc):
         """Create a new :class:`Extent` object with the centre moved to these
-        coorindates and the same rectangle size.
+        coordinates and the same rectangle size.  Clips so y is in range [0,1].
         """
         oldxc = (self._xmin + self._xmax) / 2
         oldyc = (self._ymin + self._ymax) / 2
+        ymin = self._ymin + yc - oldyc
+        ymax = self._ymax + yc - oldyc
+        if ymin < 0:
+            ymax -= ymin
+            ymin = 0
+        if ymax > 1:
+            ymin -= (ymax - 1)
+            ymax = 1
         return Extent(self._xmin + xc - oldxc, self._xmax + xc - oldxc,
-            self._ymin + yc - oldyc, self._ymax + yc - oldyc, self._project_str)
+            ymin, ymax, self._project_str)
 
     def with_centre_lonlat(self, longitude, latitude):
         """Create a new :class:`Extent` object with the centre the given
@@ -223,17 +242,56 @@ class Extent():
     def to_aspect(self, aspect):
         """Return a new instance with the given aspect ratio.  Shrinks the
         rectangle as necessary."""
-        new_xrange = self.height * aspect
-        new_yrange = self.height
+        width = self._xmax - self._xmin
+        height = self._ymax - self._ymin
+        new_xrange = height * aspect
+        new_yrange = height
         if new_xrange > self.width:
-            new_xrange = self.width
-            new_yrange = self.width / aspect
+            new_xrange = width
+            new_yrange = width / aspect
         midx = (self._xmin + self._xmax) / 2
         midy = (self._ymin + self._ymax) / 2
         return Extent(midx - new_xrange / 2, midx + new_xrange / 2,
                       midy - new_yrange / 2, midy + new_yrange / 2,
                       self._project_str)
+
+    def with_absolute_translation(self, dx, dy):
+        """Return a new instance translated by this amount.  Clips `y` to the
+        allowed region of [0,1].
         
+        :param dx: Amount to add to `x` value (on the 0 to 1 scale).
+        :param dy: Amount to add to `y` value (on the 0 to 1 scale).
+        """
+        ymin, ymax = self._ymin + dy, self._ymax + dy
+        if ymin < 0:
+            ymax -= ymin
+            ymin = 0
+        if ymax > 1:
+            ymin -= (ymax - 1)
+            ymax = 1
+        return Extent(self._xmin + dx, self._xmax + dx, ymin, ymax, self._project_str)
+        
+    def with_translation(self, dx, dy):
+        """Return a new instance translated by this amount.  The values are
+        relative to the current size, so `dx==1` means translate one whole
+        rectangle size (to the right).
+        
+        :param dx: Amount to add to `x` value relative to current width.
+        :param dy: Amount to add to `y` value relative to current height.
+        """
+        dx = dx * (self._xmax - self._xmin)
+        dy = dy * (self._ymax - self._ymin)
+        return self.with_absolute_translation(dx, dy)
+
+    def with_scaling(self, scale):
+        """Return a new instance with the same midpoint, but with the width/
+        height divided by `scale`.  So `scale=2` will zoom in."""
+        midx = (self._xmin + self._xmax) / 2
+        midy = (self._ymin + self._ymax) / 2
+        xs = (self._xmax - self._xmin) / scale / 2
+        ys = (self._ymax - self._ymin) / scale / 2
+        return Extent(midx - xs, midx + xs, midy - ys, midy + ys , self._project_str)
+
 
 class Plotter():
     """Convert a :class:`Extent` instance to an actual representation in terms
@@ -272,8 +330,8 @@ class Plotter():
         self._zoom = min(self._zoom, self._tile_provider.maxzoom)
 
     def _needed_zoom(self, web_mercator_range, pixel_range):
-        scale = web_mercator_range / pixel_range
-        return max(0, int(-_math.log2(scale * self._tile_provider.tilesize)))
+        zoom = _math.log2(pixel_range / (self._tile_provider.tilesize * web_mercator_range))
+        return max(0, _math.ceil(zoom))
 
     @property
     def extent(self):
@@ -281,7 +339,7 @@ class Plotter():
     
     @property
     def extent_in_web_mercator(self):
-        self._extent
+        return self._extent
     
     @property
     def zoom(self):
