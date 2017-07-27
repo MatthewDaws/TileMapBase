@@ -1,7 +1,7 @@
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 from .tiles import init
-from .mapping import project, to_lonlat, extent, extent_from_frame
+from .mapping import project, to_lonlat, Extent, Plotter, extent_from_frame
 from .utils import start_logging
 
 from . import tiles

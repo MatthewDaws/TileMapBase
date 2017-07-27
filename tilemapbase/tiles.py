@@ -90,6 +90,7 @@ def _get_cache():
 
 
 class _TilesExecutor(_cache.Executor):
+    """Private class to run the HTTP request."""
     def __init__(self, parent):
         self.parent = parent
         self.logger = _logging.getLogger(__name__)
@@ -105,11 +106,20 @@ class _TilesExecutor(_cache.Executor):
 
 class Tiles():
     """Class to fetch a tile as an image; transparently handles caching issues.
+    
+    :param request_string: A string which when used with `format` will give
+      a well-formed URL for the tile.  For example, for standard OSM this is
+      "http://a.tile.openstreetmap.org/{zoom}/{x}/{y}.png".
+    :param source_name: A short, human-readable name, e.g. "OSM".  Should be
+      unique, as also used by the cache.
+    :param tilesize: The size of the (square) tiles, defaults to 256.
+    :param maxzoom: The maximum tile zoom level, defaults to 19.
     """
-    def __init__(self, request_string, source_name, maxzoom = 19):
+    def __init__(self, request_string, source_name, tilesize=256, maxzoom = 19):
         self.request = request_string
         self.name = source_name
         self._maxzoom = maxzoom
+        self._tilesize = tilesize
         self._cache = None
 
     def get_tile(self, x, y, zoom):
@@ -135,7 +145,14 @@ class Tiles():
         """The maximum zoom level supported by this tile provider."""
         return self._maxzoom
 
+    @property
+    def tilesize(self):
+        """The size of the tiles."""
+        return self._tilesize
+
     def _request_string(self, x, y, zoom):
+        """Encodes the tile coords, zoom, and name into a string for the
+        database."""
         return "{}#{}#{}#{}".format(self.name, x, y, zoom)
 
     def _request_http(self, request_string):

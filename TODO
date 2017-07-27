@@ -1,7 +1,4 @@
 - Add some methods to query / extract / clean the DB cache
 - Allow mutating an `Extent` class (expand size and/or translate)
-- Change the `Extent` API so that the `zoom` is calculated dynamically:
-   - Fixes the nasty "mutate while we do this" pattern is `plot`
-   - Allows more easily changing the extent dynamically
-   - We should also pass in the requested pixel sizes...
 - More tests!
+

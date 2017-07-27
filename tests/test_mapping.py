@@ -2,7 +2,7 @@ import pytest
 
 import tilemapbase.mapping as mapping
 
-def test_projection():
+def test_projection_against_pyproj():
     import random
 
     for _ in range(1000):
@@ -19,7 +19,7 @@ def test_projection():
         assert( x == pytest.approx(xx) )
         assert( y == pytest.approx(yy) )
 
-def test_to_lonlat():
+def test_project_and_back_to_lonlat():
     import random
 
     for _ in range(1000):

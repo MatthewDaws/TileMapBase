@@ -8,7 +8,7 @@ area or length, but is convenient.  We follow these conventions:
 
 - Coordinates are always in the order longitude, latitude.
 - Longitude varies between -180 and 180 degrees.  This is the east/west
-  location from the Prime Meridian, in Greenwich, UK.  Negative is to the east.
+  location from the Prime Meridian, in Greenwich, UK.  Positive is to the east.
 - Latitude varies between -85 and 85 degress (approximately.  More extreme
   values cannot be represented in Web Mercator).  This is the north/south
   location from the equator.  Positive is to the north.
@@ -72,35 +72,78 @@ def to_lonlat(x, y):
 
 
 class Extent():
-    """Store details about an area of web mercator space.
+    """Store details about an area of web mercator space.  Can be switched to
+    be projected in EPSG:3857 / EPSG:3785.
 
-    :param zoom: The (suggested) zoom level to use.  This may be larger than
-      the maximum zoom a tile provider can give.
     :param xmin:
     :param xmax: The range of the x coordinates, between 0 and 1.
     :param ymin:
     :param ymax: The range of the y coordinates, between 0 and 1.
     """
-    def __init__(self, zoom, xmin, xmax, ymin, ymax):
-        self._zoom = zoom
+    def __init__(self, xmin, xmax, ymin, ymax, projection_type="normal"):
         self._xmin, self._xmax = xmin, xmax
         self._ymin, self._ymax = ymin, ymax
-        self._project = self._normal_project
+        if projection_type == "normal":
+            self.project = self._normal_project
+        elif projection_type == "epsg:3857":
+            self.project = self._3857_project
+        else:
+            raise ValueError()
+        self._project_str = projection_type
 
-    @property
-    def zoom(self):
-        """The suggested zoom level."""
-        return self._zoom
+    @staticmethod
+    def from_centre(x, y, xsize=None, ysize=None, aspect=1.0):
+        """Construct a new instance centred on the given location in Web
+        Mercator space, with a given width and/or height.  If only one of the
+        width or height is specified, the aspect ratio is used.
+        """
+        if xsize is None and ysize is None:
+            raise ValueError("Must specify at least one of width and height")
+        x, y, aspect = float(x), float(y), float(aspect)
+        if xsize is not None:
+            xsize = float(xsize)
+        if ysize is not None:
+            ysize = float(ysize)
+        if xsize is None:
+            xsize = ysize * aspect
+        if ysize is None:
+            ysize = xsize / aspect
+        xmin, xmax = x - xsize / 2, x + xsize / 2
+        xmin, xmax = max(0, xmin), min(1.0, xmax)
+        ymin, ymax = y - ysize / 2, y + ysize / 2
+        ymin, ymax = max(0, ymin), min(1.0, ymax)
+        return Extent(xmin, xmax, ymin, ymax)
+
+    @staticmethod
+    def from_centre_lonlat(longitude, latitude, xsize=None, ysize=None, aspect=1.0):
+        """Construct a new instance centred on the given location with a given
+        width and/or height.  If only one of the width or height is specified,
+        the aspect ratio is used.
+        """
+        x, y = project(longitude, latitude)
+        return Extent.from_centre(x, y, xsize, ysize, aspect)
+        
+    @staticmethod
+    def from_lonlat(longitude_min, longitude_max, latitude_min, latitude_max):
+        """Map the box, in longitude/latitude space, to the web mercator
+        projection."""
+        xmin, ymin = project(longitude_min, latitude_max)
+        xmax, ymax = project(longitude_max, latitude_min)
+        return Extent(xmin, xmax, ymin, ymax)
 
     @property
     def xmin(self):
         """Minimum x value of the region."""
-        return self._project(self._xmin, self._ymin)[0]
+        return self.project(self._xmin, self._ymin)[0]
 
     @property
     def xmax(self):
         """Maximum x value of the region."""
-        return self._project(self._xmax, self._ymax)[0]
+        return self.project(self._xmax, self._ymax)[0]
+
+    @property
+    def width(self):
+        return self.xmax - self.xmin
 
     @property
     def xrange(self):
@@ -110,12 +153,16 @@ class Extent():
     @property
     def ymin(self):
         """Minimum y value of the region."""
-        return self._project(self._xmin, self._ymin)[1]
+        return self.project(self._xmin, self._ymin)[1]
 
     @property
     def ymax(self):
         """Maximum y value of the region."""
-        return self._project(self._xmax, self._ymax)[1]
+        return self.project(self._xmax, self._ymax)[1]
+
+    @property
+    def height(self):
+        return self.ymax - self.ymin
 
     @property
     def yrange(self):
@@ -124,27 +171,15 @@ class Extent():
         """
         return (self.ymax, self.ymin)
 
-    @property
-    def xtilemin(self):
-        """The least x coordinate in tile space we need to cover the region."""
-        return int(2 ** self._zoom * self._xmin)
+    def __repr__(self):
+        return "Extent(({},{})->({},{}) projected as {})".format(self.xmin, self.ymin,
+                      self.xmax, self.ymax, self._project_str)
 
-    @property
-    def xtilemax(self):
-        """The greatest x coordinate in tile space we need to cover the region.
-        """
-        return int(2 ** self._zoom * self._xmax)
-
-    @property
-    def ytilemin(self):
-        """The least y coordinate in tile space we need to cover the region."""
-        return int(2 ** self._zoom * self._ymin)
-
-    @property
-    def ytilemax(self):
-        """The greatest y coordinate in tile space we need to cover the region.
-        """
-        return int(2 ** self._zoom * self._ymax)
+    def clone(self, projection_type=None):
+        """A copy"""
+        if projection_type is None:
+            projection_type = self._project_str
+        return Extent(self._xmin, self._xmax, self._ymin, self._ymax, projection_type)
 
     def _normal_project(self, x, y):
         """Project from tile space to coords."""
@@ -153,17 +188,127 @@ class Extent():
     def _3857_project(self, x, y):
         return _to_3857(x, y)
 
-    def project_3857(self):
+    def to_project_3857(self):
         """Change the coordinate system to conform to EPSG:3857 / EPSG:3785
         which can be useful when working with e.g. geoPandas (or other data
         which is projected in this way).
+        
+        :return: A new instance of :class:`Extent`
         """
-        self._project = self._3857_project
+        return self.clone("epsg:3857")
 
-    def project_web_mercator(self):
+    def to_project_web_mercator(self):
         """Change the coordinate system back to the default, the unit square.
+
+        :return: A new instance of :class:`Extent`
         """
-        self._project = self._normal_project
+        return self.clone("normal")
+
+    def with_centre(self, xc, yc):
+        """Create a new :class:`Extent` object with the centre moved to these
+        coorindates and the same rectangle size.
+        """
+        oldxc = (self._xmin + self._xmax) / 2
+        oldyc = (self._ymin + self._ymax) / 2
+        return Extent(self._xmin + xc - oldxc, self._xmax + xc - oldxc,
+            self._ymin + yc - oldyc, self._ymax + yc - oldyc, self._project_str)
+
+    def with_centre_lonlat(self, longitude, latitude):
+        """Create a new :class:`Extent` object with the centre the given
+        longitude / latitude and the same rectangle size.
+        """
+        xc, yc = project(longitude, latitude)
+        return self.with_centre(xc, yc)
+    
+    def to_aspect(self, aspect):
+        """Return a new instance with the given aspect ratio.  Shrinks the
+        rectangle as necessary."""
+        new_xrange = self.height * aspect
+        new_yrange = self.height
+        if new_xrange > self.width:
+            new_xrange = self.width
+            new_yrange = self.width / aspect
+        midx = (self._xmin + self._xmax) / 2
+        midy = (self._ymin + self._ymax) / 2
+        return Extent(midx - new_xrange / 2, midx + new_xrange / 2,
+                      midy - new_yrange / 2, midy + new_yrange / 2,
+                      self._project_str)
+        
+
+class Plotter():
+    """Convert a :class:`Extent` instance to an actual representation in terms
+    of tiles.  You can either specify a known zoom level of tiles, or specify
+    a width and/or height in pixels, and allow the zoom level to be chosen
+    appropriately.  If both a width and height are specified, then the greatest
+    zoom level is used.
+    
+    :param extent: The base :class:`Extent` instance.
+    :param tile_provider: The :class:`tiles.Tiles` object which provides
+      tiles.
+    :param zoom: If not `None`, then use this zoom level (will be clipped to
+      the best zoom to tile provider can give).
+    :param width: Optional target width in pixels.
+    :param height: Optional target height in pixels.
+    :param tile_size: The (square) tile size, defaults to 256 pixels.
+    """
+    def __init__(self, extent, tile_provider, zoom=None, width=None, height=None):
+        if zoom is None and width is None and height is None:
+            raise ValueError("Need to specify one of zoom, width or height")
+        if zoom is not None and (width is not None or height is not None):
+            raise ValueError("Cannot specify both a zoom and a width or height")
+        
+        self._extent = extent.to_project_web_mercator()
+        self._original_extent = extent
+        self._tile_provider = tile_provider
+        if zoom is not None:
+            self._zoom = zoom
+        else:
+            options = []
+            if width is not None:
+                options.append(self._needed_zoom(self._extent.xmax - self._extent.xmin, width))
+            if height is not None:
+                options.append(self._needed_zoom(self._extent.ymax - self._extent.ymin, height))
+            self._zoom = max(options)
+        self._zoom = min(self._zoom, self._tile_provider.maxzoom)
+
+    def _needed_zoom(self, web_mercator_range, pixel_range):
+        scale = web_mercator_range / pixel_range
+        return max(0, int(-_math.log2(scale * self._tile_provider.tilesize)))
+
+    @property
+    def extent(self):
+        return self._original_extent
+    
+    @property
+    def extent_in_web_mercator(self):
+        self._extent
+    
+    @property
+    def zoom(self):
+        """The actual zoom level to be used."""
+        return self._zoom
+    
+    @property
+    def xtilemin(self):
+        """The least x coordinate in tile space we need to cover the region."""
+        return int(2 ** self._zoom * self._extent.xmin)
+
+    @property
+    def xtilemax(self):
+        """The greatest x coordinate in tile space we need to cover the region.
+        """
+        return int(2 ** self._zoom * self._extent._xmax)
+
+    @property
+    def ytilemin(self):
+        """The least y coordinate in tile space we need to cover the region."""
+        return int(2 ** self._zoom * self._extent._ymin)
+
+    @property
+    def ytilemax(self):
+        """The greatest y coordinate in tile space we need to cover the region.
+        """
+        return int(2 ** self._zoom * self._extent._ymax)
 
     def _check_download_size(self):
         num_tiles = ( (self.xtilemax + 1 - self.xtilemin) *
@@ -171,164 +316,73 @@ class Extent():
         if num_tiles > 128:
             raise ValueError("Would use {} tiles, which is excessive.  Pass `allow_large = True` to force usage.".format(num_tiles))
 
-    def _adjust_zoom(self, tile_provider):
-        old_zoom = self.zoom
-        self._zoom = min(self.zoom, tile_provider.maxzoom)
-        return old_zoom
-
-    def plotlq(self, ax, tile_provider, allow_large = False, **kwargs):
+    def plotlq(self, ax, allow_large = False, **kwargs):
         """Use these settings to plot the tiles to a `matplotlib` axes.  This
         method repeatedly calls the `imshow` method, which does not lead to the
-        highest quality tiling: compare with :method:`plot`.  Will
-        intelligently use the maximum zoom which the tile provider can give.
+        highest quality tiling: compare with :method:`plot`.
 
         :param ax: The axes object to plot to.
-        :param tile_provider: The :class:`tiles.Tiles` object which provides
-          tiles.
         :param allow_large: If False (default) then don't use more than 128
           tiles.  A guard against spamming the tile server.
         :param kwargs: Other arguments which will be forwarded to the `imshow`
           matplotlib method.
         """
-        old_zoom = self._adjust_zoom(tile_provider)
-        try:
-            if not allow_large:
-                self._check_download_size()
-            scale = 2 ** self.zoom
-            for x in range(self.xtilemin, self.xtilemax + 1):
-                for y in range(self.ytilemin, self.ytilemax + 1):
-                    tile = tile_provider.get_tile(x, y, self.zoom)
-                    x0, y0 = self._project(x / scale, y / scale)
-                    x1, y1 = self._project((x + 1) / scale, (y + 1) / scale)
-                    ax.imshow(tile, interpolation="lanczos", extent=(x0,x1,y1,y0), **kwargs)
-            ax.set(xlim = self.xrange, ylim = self.yrange)
-        finally:
-            self._zoom = old_zoom
+        if not allow_large:
+            self._check_download_size()
+        scale = 2 ** self.zoom
+        for x in range(self.xtilemin, self.xtilemax + 1):
+            for y in range(self.ytilemin, self.ytilemax + 1):
+                tile = self._tile_provider.get_tile(x, y, self.zoom)
+                x0, y0 = self.extent.project(x / scale, y / scale)
+                x1, y1 = self.extent.project((x + 1) / scale, (y + 1) / scale)
+                ax.imshow(tile, interpolation="lanczos", extent=(x0,x1,y1,y0), **kwargs)
+        ax.set(xlim = self.extent.xrange, ylim = self.extent.yrange)
 
-    def as_one_image(self, tile_provider, allow_large = False):
-        """Use these settings to assemble tiles into a single image.  Will
-        intelligently use the maximum zoom which the tile provider can give.
+    def as_one_image(self, allow_large = False):
+        """Use these settings to assemble tiles into a single image.
 
         :param ax: The axes object to plot to.
         :param tile_provider: The :class:`tiles.Tiles` object which provides
           tiles.
         :param allow_large: If False (default) then don't use more than 128
-          tiles.  A guard against spamming the tile server.
+          tiles.  A guard against spamming the tile server.tile_provider
+          
+        :return: A :class:`PIL.Image` instance.
         """
-        old_zoom = self._adjust_zoom(tile_provider)
-        try:
-            if not allow_large:
-                self._check_download_size()
-            tiles = []
-            for x in range(self.xtilemin, self.xtilemax + 1):
-                for y in range(self.ytilemin, self.ytilemax + 1):
-                    tiles.append(tile_provider.get_tile(x, y, self.zoom))
-            xsize, ysize = tiles[0].size
-            xs = xsize * (self.xtilemax + 1 - self.xtilemin)
-            ys = ysize * (self.ytilemax + 1 - self.ytilemin)
-            out = _Image.new("RGB", (xs, ys))
-            index = 0
-            for x in range(self.xtilemin, self.xtilemax + 1):
-                for y in range(self.ytilemin, self.ytilemax + 1):
-                    xo = (x - self.xtilemin) * xsize
-                    yo = (y - self.ytilemin) * ysize
-                    out.paste(tiles[index], (xo, yo))
-                    index += 1
-            return out
-        finally:
-            self._zoom = old_zoom
+        if not allow_large:
+            self._check_download_size()
+        size = self._tile_provider.tilesize
+        xs = size * (self.xtilemax + 1 - self.xtilemin)
+        ys = size * (self.ytilemax + 1 - self.ytilemin)
+        out = _Image.new("RGB", (xs, ys))
+        for x in range(self.xtilemin, self.xtilemax + 1):
+            for y in range(self.ytilemin, self.ytilemax + 1):
+                tile = self._tile_provider.get_tile(x, y, self.zoom)
+                xo = (x - self.xtilemin) * size
+                yo = (y - self.ytilemin) * size
+                out.paste(tile, (xo, yo))
+        return out
 
-    def plot(self, ax, tile_provider, allow_large = False, **kwargs):
+    def plot(self, ax, allow_large = False, **kwargs):
         """Use these settings to plot the tiles to a `matplotlib` axes.  This
         method uses :package:`pillow` to assemble the tiles into a single image
         before using `matplotlib` to display.  This leads to a better image.
-        Will intelligently use the maximum zoom which the tile provider can
-        give.
 
         :param ax: The axes object to plot to.
-        :param tile_provider: The :class:`tiles.Tiles` object which provides
-          tiles.
         :param allow_large: If False (default) then don't use more than 128
           tiles.  A guard against spamming the tile server.
         :param kwargs: Other arguments which will be forwarded to the `imshow`
           matplotlib method.
         """
-        old_zoom = self._adjust_zoom(tile_provider)
-        try:
-            tile = self.as_one_image(tile_provider, allow_large)
-            scale = 2 ** self.zoom
-            x0, y0 = self._project(self.xtilemin / scale, self.ytilemin / scale)
-            x1, y1 = self._project((self.xtilemax + 1) / scale, (self.ytilemax + 1) / scale)
-            ax.imshow(tile, interpolation="lanczos", extent=(x0,x1,y1,y0), **kwargs)
-            ax.set(xlim = self.xrange, ylim = self.yrange)
-        finally:
-            self._zoom = old_zoom
+        tile = self.as_one_image(allow_large)
+        scale = 2 ** self.zoom
+        x0, y0 = self.extent.project(self.xtilemin / scale, self.ytilemin / scale)
+        x1, y1 = self.extent.project((self.xtilemax + 1) / scale, (self.ytilemax + 1) / scale)
+        ax.imshow(tile, interpolation="lanczos", extent=(x0,x1,y1,y0), **kwargs)
+        ax.set(xlim = self.extent.xrange, ylim = self.extent.yrange)
 
-    def plothq(self, ax, tile_provider, allow_large = False, **kwargs):
-        """Depreciated.  Use :method:`plot` instead."""
-        self.plot(ax, tile_provider, allow_large, **kwargs)
 
-    def with_centre(self, longitude, latitude):
-        """Create a new :class:`Extent` object with the centre the the given
-        longitude / latitude.
-        """
-        xc, yc = project(longitude, latitude)
-        oldxc = (self._xmin + self._xmax) / 2
-        oldyc = (self._ymin + self._ymax) / 2
-        return Extent(self._zoom, self._xmin + xc - oldxc, self._xmax + xc - oldxc,
-            self._ymin + yc - oldyc, self._ymax + yc - oldyc)
-
-    def with_zoom(self, zoom):
-        """Create a new :class:`Extent` object with the new zoom level.
-        """
-        return Extent(zoom, self._xmin, self._xmax, self._ymin, self._ymax)
-        
-
-def extent(longitude_min, longitude_max, latitude_min, latitude_max,
-        pixel_width, pixel_height, tile_size=256):
-    """Map the box, in longitude/latitude space, to the web mercator projection
-    and conform to the display box of the given size.  Calculates a suitable
-    zoom level so that the tiles will be downscaled, by a factor less than 2.
-
-    The smaller overall scale is chosen, so the returned window may be smaller
-    than the requested box, in order to preserve the square aspect ratio.
-
-    :param longitude_min:
-    :param longitude_max: Range of longitude
-    :param latitude_min:
-    :param latitude_max: Range of latitude
-    :param pixel_width: Aimed for width, in pixels
-    :param pixel_height: Aimed for height, in pixels.  If None, then compute
-      automatically to produce a square aspect ratio.
-    :param tile_size: The size of tiles from the server, defaults to 256.
-
-    :return: An instance of :class:`Extent` giving details of the optimal area.
-    """
-    xmin, ymin = project(longitude_min, latitude_max)
-    xmax, ymax = project(longitude_max, latitude_min)
-    xrange = xmax - xmin
-    yrange = ymax - ymin
-
-    xscale = xrange / pixel_width
-    if pixel_height is not None:
-        yscale = yrange / pixel_height
-        scale = min(xscale, yscale)
-    else:
-        scale = xscale
-
-    width = pixel_width * scale / 2
-    if pixel_height is not None:
-        height = pixel_height * scale / 2
-    else:
-        height = yrange / 2
-    xmid = (xmin + xmax) / 2
-    ymid = (ymin + ymax) / 2
-
-    xmin, xmax = xmid - width, xmid + width
-    ymin, ymax = ymid - height, ymid + height
-    zoom = max(0, int(-_math.log2(scale * tile_size)))
-
-    return Extent(zoom, xmin, xmax, ymin, ymax)
+##### Geopandas compatibility code
 
 _NATIVE_LONLAT = 4326
 _WEB_MERCATOR = 3857
@@ -349,7 +403,7 @@ def _parse_crs(crs):
     except Exception:
         raise ValueError("Unknown crs data: '{}'".format(crs))
 
-def extent_from_frame(frame, pixel_width, buffer):
+def extent_from_frame(frame, buffer=0):
     """Minimal interface to compute an :class:`Extent` from a geoPandas
     DataFrame.
     
@@ -375,9 +429,9 @@ def extent_from_frame(frame, pixel_width, buffer):
     width = (bounds[2] - bounds[0]) / 2 + buffer
     height = (bounds[3] - bounds[1]) / 2 + buffer
     x, y = (bounds[0] + bounds[2]) / 2, (bounds[1] + bounds[3]) / 2
-    e = extent(x - width, x + width, y - height, y + height, pixel_width, None)
+    e = Extent.from_lonlat(x - width, x + width, y - height, y + height)
     if proj == _WEB_MERCATOR:
-        e.project_3857()
+        return e.to_project_3857()
     return e
 
 def points_from_frame(frame):
@@ -410,6 +464,8 @@ def points_from_frame(frame):
             ycs.append(point.coords[0][1])
     return xcs, ycs
 
+
+##### (Optional) usage of pyproj
 
 try:
     import pyproj as _pyproj
