@@ -71,74 +71,15 @@ def to_lonlat(x, y):
     return (longitude, latitude)
 
 
-class Extent():
-    """Store details about an area of web mercator space.  Can be switched to
-    be projected in EPSG:3857 / EPSG:3785.  We allow the x range outside of
-    [0,1] to allow working across the "boundary" as 1 (i.e. we treat the
-    coordinates as being topologically a cylinder and identify (0,y) and (1,y)
-    for all y).
-
-    :param xmin:
-    :param xmax: The range of the x coordinates, between 0 and 1. (But see
-      note above).
-    :param ymin:
-    :param ymax: The range of the y coordinates, between 0 and 1.
-    :param projection_type: Internal use only, see :meth:`to_project_3857`
-      and :meth:`to_project_web_mercator` instead.
-    """
-    def __init__(self, xmin, xmax, ymin, ymax, projection_type="normal"):
-        if not (xmin < xmax):
-            raise ValueError("xmin < xmax.")
-        if ymin < 0 or ymax > 1 or not (ymin < ymax):
-            raise ValueError("Need 0 < ymin < ymax < 1.")
+class _BaseExtent():
+    """A simple "rectangular region" class."""
+    def __init__(self, xmin, xmax, ymin, ymax):
         self._xmin, self._xmax = xmin, xmax
         self._ymin, self._ymax = ymin, ymax
-        if projection_type == "normal":
-            self.project = self._normal_project
-        elif projection_type == "epsg:3857":
-            self.project = self._3857_project
-        else:
-            raise ValueError()
-        self._project_str = projection_type
-
-    @staticmethod
-    def from_centre(x, y, xsize=None, ysize=None, aspect=1.0):
-        """Construct a new instance centred on the given location in Web
-        Mercator space, with a given width and/or height.  If only one of the
-        width or height is specified, the aspect ratio is used.
-        """
-        if xsize is None and ysize is None:
-            raise ValueError("Must specify at least one of width and height")
-        x, y, aspect = float(x), float(y), float(aspect)
-        if xsize is not None:
-            xsize = float(xsize)
-        if ysize is not None:
-            ysize = float(ysize)
-        if xsize is None:
-            xsize = ysize * aspect
-        if ysize is None:
-            ysize = xsize / aspect
-        xmin, xmax = x - xsize / 2, x + xsize / 2
-        xmin, xmax = max(0, xmin), min(1.0, xmax)
-        ymin, ymax = y - ysize / 2, y + ysize / 2
-        ymin, ymax = max(0, ymin), min(1.0, ymax)
-        return Extent(xmin, xmax, ymin, ymax)
-
-    @staticmethod
-    def from_centre_lonlat(longitude, latitude, xsize=None, ysize=None, aspect=1.0):
-        """Construct a new instance centred on the given location with a given
-        width and/or height.  If only one of the width or height is specified,
-        the aspect ratio is used.
-        """
-        x, y = project(longitude, latitude)
-        return Extent.from_centre(x, y, xsize, ysize, aspect)
-        
-    @staticmethod
-    def from_lonlat(longitude_min, longitude_max, latitude_min, latitude_max):
-        """Construct a new instance from longitude/latitude space."""
-        xmin, ymin = project(longitude_min, latitude_max)
-        xmax, ymax = project(longitude_max, latitude_min)
-        return Extent(xmin, xmax, ymin, ymax)
+        if not (xmin < xmax):
+            raise ValueError("xmin < xmax.")
+        if not (ymin < ymax):
+            raise ValueError("ymin < ymax.")
 
     @property
     def xmin(self):
@@ -181,6 +122,84 @@ class Extent():
         `matplotib`.
         """
         return (self.ymax, self.ymin)
+
+    @staticmethod
+    def from_centre(x, y, xsize=None, ysize=None, aspect=1.0):
+        """Helper method to aid in constructing a new instance centred on the
+        given location, with a given width and/or height.  If only one of the
+        width or height is specified, the aspect ratio is used.
+
+        :return: `(xmin, xmax, ymin, ymax)`
+        """
+        if xsize is None and ysize is None:
+            raise ValueError("Must specify at least one of width and height")
+        x, y, aspect = float(x), float(y), float(aspect)
+        if xsize is not None:
+            xsize = float(xsize)
+        if ysize is not None:
+            ysize = float(ysize)
+        if xsize is None:
+            xsize = ysize * aspect
+        if ysize is None:
+            ysize = xsize / aspect
+        xmin, xmax = x - xsize / 2, x + xsize / 2
+        ymin, ymax = y - ysize / 2, y + ysize / 2
+        return (xmin, xmax, ymin, ymax)
+
+
+class Extent(_BaseExtent):
+    """Store details about an area of web mercator space.  Can be switched to
+    be projected in EPSG:3857 / EPSG:3785.  We allow the x range outside of
+    [0,1] to allow working across the "boundary" as 1 (i.e. we treat the
+    coordinates as being topologically a cylinder and identify (0,y) and (1,y)
+    for all y).
+
+    :param xmin:
+    :param xmax: The range of the x coordinates, between 0 and 1. (But see
+      note above).
+    :param ymin:
+    :param ymax: The range of the y coordinates, between 0 and 1.
+    :param projection_type: Internal use only, see :meth:`to_project_3857`
+      and :meth:`to_project_web_mercator` instead.
+    """
+    def __init__(self, xmin, xmax, ymin, ymax, projection_type="normal"):
+        super().__init__(xmin, xmax, ymin, ymax)
+        if ymin < 0 or ymax > 1:
+            raise ValueError("Need 0 < ymin < ymax < 1.")
+        if projection_type == "normal":
+            self.project = self._normal_project
+        elif projection_type == "epsg:3857":
+            self.project = self._3857_project
+        else:
+            raise ValueError()
+        self._project_str = projection_type
+
+    @staticmethod
+    def from_centre(x, y, xsize=None, ysize=None, aspect=1.0):
+        """Construct a new instance centred on the given location in Web
+        Mercator space, with a given width and/or height.  If only one of the
+        width or height is specified, the aspect ratio is used.
+        """
+        xmin, xmax, ymin, ymax = _BaseExtent.from_centre(x, y, xsize, ysize, aspect)
+        xmin, xmax = max(0, xmin), min(1.0, xmax)
+        ymin, ymax = max(0, ymin), min(1.0, ymax)
+        return Extent(xmin, xmax, ymin, ymax)
+
+    @staticmethod
+    def from_centre_lonlat(longitude, latitude, xsize=None, ysize=None, aspect=1.0):
+        """Construct a new instance centred on the given location with a given
+        width and/or height.  If only one of the width or height is specified,
+        the aspect ratio is used.
+        """
+        x, y = project(longitude, latitude)
+        return Extent.from_centre(x, y, xsize, ysize, aspect)
+        
+    @staticmethod
+    def from_lonlat(longitude_min, longitude_max, latitude_min, latitude_max):
+        """Construct a new instance from longitude/latitude space."""
+        xmin, ymin = project(longitude_min, latitude_max)
+        xmax, ymax = project(longitude_max, latitude_min)
+        return Extent(xmin, xmax, ymin, ymax)
 
     def __repr__(self):
         return "Extent(({},{})->({},{}) projected as {})".format(self.xmin, self.ymin,

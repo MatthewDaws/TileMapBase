@@ -17,6 +17,7 @@ import math as _math
 import os as _os
 import re as _re
 import PIL.Image as _Image
+from .mapping import _BaseExtent
 
 # Singletons
 _openmap_local_lookup = None
@@ -85,7 +86,78 @@ def _code_grid_residual(longitude, latitude):
 
     return grid_code, x - x100 * 100000, y - y100 * 100000
 
+def os_national_grid_to_coords(grid_position):
+    """Convert a OS national grid reference like `SE 29383 34363` to
+    coordinates, e.g. `(429383, 434363)`."""
+    try:
+        code, x, y = grid_position.split(" ")
+        x, y = int(x), int(y)
+        codes = "ABCDEFGHJKLMNOPQRSTUVWXYZ"
+        index0 = codes.index(code[0])
+        x500, y500 = (index0 % 5) - 2, 3 - (index0 // 5)
+        index1 = codes.index(code[1])
+        x100, y100 = (index1 % 5), 4 - (index1 // 5)
+        return 500000 * x500 + 100000 * x100 + x, 500000 * y500 + 100000 * y100 + y
+    except:
+        raise ValueError("Should be a grid reference like 'SE 12345 12345'.")
 
+
+
+class Extent(_BaseExtent):
+    """Store details about an area of OS national grid space.  The region must
+    be inside the box `-1,000,000 <= x < 1,500,000` and
+    `-500,000 < y <= 1,999,999` but this is a much larger range than the UK
+    and so not all coordinates will correspond to valid tiles.
+
+    :param xmin:
+    :param xmax: The range of the x coordinates.
+    :param ymin:
+    :param ymax: The range of the y coordinates.
+    """
+    def __init__(self, xmin, xmax, ymin, ymax):
+        super().__init__(xmin, xmax, ymin, ymax)
+        if not (-1000000 <= xmin and xmax < 1500000 and -500000 < ymin and ymax < 2000000):
+            raise ValueError("Not with range")
+        self.project = self._project
+
+    @staticmethod
+    def from_centre(x, y, xsize=None, ysize=None, aspect=1.0):
+        """Construct a new instance centred on the given location, with a given
+        width and/or height.  If only one of the width or height is specified,
+        the aspect ratio is used.
+        """
+        xmin, xmax, ymin, ymax = _BaseExtent.from_centre(x, y, xsize, ysize, aspect)
+        return Extent(xmin, xmax, ymin, ymax)
+
+    @staticmethod
+    def from_centre_lonlat(longitude, latitude, xsize=None, ysize=None, aspect=1.0):
+        """Construct a new instance centred on the given location with a given
+        width and/or height.  If only one of the width or height is specified,
+        the aspect ratio is used.
+        """
+        x, y = project(longitude, latitude)
+        return Extent.from_centre(x, y, xsize, ysize, aspect)
+
+    @staticmethod
+    def from_lonlat(longitude_min, longitude_max, latitude_min, latitude_max):
+        """Construct a new instance from longitude/latitude space."""
+        xmin, ymin = project(longitude_min, latitude_max)
+        xmax, ymax = project(longitude_max, latitude_min)
+        return Extent(xmin, xmax, ymin, ymax)
+
+    @staticmethod
+    def from_centre_grid(grid_position, xsize=None, ysize=None, aspect=1.0):
+        """Construct a new instance centred on the given location with a given
+        width and/or height.  The centre location is given as a OS grid
+        reference, such as "SE 29383 34363".  If only one of the width or
+        height is specified, the aspect ratio is used.
+        """
+        x, y = os_national_grid_to_coords(grid_position)
+        return Extent.from_centre(x, y, xsize, ysize, aspect)
+
+    def _project(self, x, y):
+        # For compatibility with the base class
+        return x, y
 
 
 ##### (Optional) usage of pyproj
