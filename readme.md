@@ -25,3 +25,7 @@ Pure python.  Uses [requests](http://docs.python-requests.org/en/master/) to mak
 OpenStreetMap Data is "© OpenStreetMap contributors”, see http://www.openstreetmap.org/copyright
 
 Please remember that tile set usage is subject to constraints: https://operations.osmfoundation.org/policies/tiles/
+
+## Ordnance Survery data
+
+[Contains OS data © Crown copyright and database right (2017)](http://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/)

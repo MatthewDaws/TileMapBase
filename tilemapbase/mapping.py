@@ -146,6 +146,30 @@ class _BaseExtent():
         ymin, ymax = y - ysize / 2, y + ysize / 2
         return (xmin, xmax, ymin, ymax)
 
+    def _to_aspect(self, aspect):
+        """Internal helper method.  Return a new bounding box.
+        Shrinks the rectangle as necessary."""
+        width = self._xmax - self._xmin
+        height = self._ymax - self._ymin
+        new_xrange = height * aspect
+        new_yrange = height
+        if new_xrange > self.width:
+            new_xrange = width
+            new_yrange = width / aspect
+        midx = (self._xmin + self._xmax) / 2
+        midy = (self._ymin + self._ymax) / 2
+        return (midx - new_xrange / 2, midx + new_xrange / 2,
+                      midy - new_yrange / 2, midy + new_yrange / 2)
+
+    def _with_scaling(self, scale):
+        """Return a new instance with the same midpoint, but with the width/
+        height divided by `scale`.  So `scale=2` will zoom in."""
+        midx = (self._xmin + self._xmax) / 2
+        midy = (self._ymin + self._ymax) / 2
+        xs = (self._xmax - self._xmin) / scale / 2
+        ys = (self._ymax - self._ymin) / scale / 2
+        return (midx - xs, midx + xs, midy - ys, midy + ys)
+
 
 class Extent(_BaseExtent):
     """Store details about an area of web mercator space.  Can be switched to
@@ -261,18 +285,7 @@ class Extent(_BaseExtent):
     def to_aspect(self, aspect):
         """Return a new instance with the given aspect ratio.  Shrinks the
         rectangle as necessary."""
-        width = self._xmax - self._xmin
-        height = self._ymax - self._ymin
-        new_xrange = height * aspect
-        new_yrange = height
-        if new_xrange > self.width:
-            new_xrange = width
-            new_yrange = width / aspect
-        midx = (self._xmin + self._xmax) / 2
-        midy = (self._ymin + self._ymax) / 2
-        return Extent(midx - new_xrange / 2, midx + new_xrange / 2,
-                      midy - new_yrange / 2, midy + new_yrange / 2,
-                      self._project_str)
+        return Extent(*self._to_aspect(aspect), self._project_str)
 
     def with_absolute_translation(self, dx, dy):
         """Return a new instance translated by this amount.  Clips `y` to the
@@ -305,11 +318,7 @@ class Extent(_BaseExtent):
     def with_scaling(self, scale):
         """Return a new instance with the same midpoint, but with the width/
         height divided by `scale`.  So `scale=2` will zoom in."""
-        midx = (self._xmin + self._xmax) / 2
-        midy = (self._ymin + self._ymax) / 2
-        xs = (self._xmax - self._xmin) / scale / 2
-        ys = (self._ymax - self._ymin) / scale / 2
-        return Extent(midx - xs, midx + xs, midy - ys, midy + ys , self._project_str)
+        return Extent(*self._with_scaling(scale), self._project_str)
 
 
 class Plotter():

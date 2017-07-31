@@ -7,3 +7,4 @@ from .utils import start_logging
 from . import tiles
 from . import mapping
 from . import utils
+from . import ordnancesurvey
