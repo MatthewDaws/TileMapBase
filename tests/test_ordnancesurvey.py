@@ -28,16 +28,19 @@ def test_init():
     ons.init(os.path.join("tests", "test_os_map_data"))
     base = os.path.abspath(os.path.join("tests", "test_os_map_data", "data"))
 
-    assert ons._openmap_local_lookup == {
+    assert ons._lookup["openmap_local"] == {
         "AH" : os.path.join(base, "one"),
         "AA" : os.path.join(base, "two") }
-    assert ons._vectormap_local_lookup == {
+    assert ons._lookup["vectormap_district"] == {
         "BG" : os.path.join(base, "one") }
+    mini = os.path.abspath(os.path.join("tests", "test_os_map_data", "mini"))
+    assert ons._lookup["miniscale"] == {"MiniScale_one.tif" : mini,
+        "MiniScale_two.tif" : mini}
 
 @pytest.fixture
 def omll():
-    files = {"SE" : "se_dir"}
-    with mock.patch("tilemapbase.ordnancesurvey._openmap_local_lookup", new=files):
+    files = {"openmap_local" : {"SE" : "se_dir"}}
+    with mock.patch("tilemapbase.ordnancesurvey._lookup", new=files):
         yield None
 
 @pytest.fixture
@@ -67,7 +70,83 @@ def test_OpenMapLocal(omll, image_mock):
         oml("SF 145612653")
 
     assert oml.tilesize == 5000
-    assert oml.tilesize == 5000
+    assert oml.size_in_meters == 5000
+
+@pytest.fixture
+def vmd():
+    files = {"vectormap_district" : {"SE" : "se_dir"}}
+    with mock.patch("tilemapbase.ordnancesurvey._lookup", new=files):
+        yield None
+
+def test_VectorMapDistrict(vmd, image_mock):
+    oml = ons.VectorMapDistrict()
+
+    oml("SE 12345 54321")
+    image_mock.open.assert_called_with(os.path.join("se_dir", "SE15.tif"))
+
+    oml("SE 16345 54321")
+    image_mock.open.assert_called_with(os.path.join("se_dir", "SE15.tif"))
+
+    oml("SE 22345 55321")
+    image_mock.open.assert_called_with(os.path.join("se_dir", "SE25.tif"))
+
+    oml("SE 15345 75321")
+    image_mock.open.assert_called_with(os.path.join("se_dir", "SE17.tif"))
+
+    with pytest.raises(ons.TileNotFoundError):
+        oml("SF 1456 12653")
+
+    with pytest.raises(ValueError):
+        oml("SF 145612653")
+
+    assert oml.tilesize == 4000
+    assert oml.size_in_meters == 10000
+
+@pytest.fixture
+def tfs():
+    files = {"250k_raster" : "250kdir"}
+    with mock.patch("tilemapbase.ordnancesurvey._lookup", new=files):
+        yield None
+
+def test_TwoFiftyScale(tfs, image_mock):
+    ts = ons.TwoFiftyScale()
+    assert ts.tilesize == 4000
+    assert ts.size_in_meters == 100000
+
+    ts("SE 1234 43231")
+    image_mock.open.assert_called_with(os.path.join("250kdir", "SE.tif"))
+
+@pytest.fixture
+def mini():
+    files = {"miniscale" : {"mini_one.tif" : "dirone", "mini_two.tif" : "dirtwo"}}
+    with mock.patch("tilemapbase.ordnancesurvey._lookup", new=files):
+        yield None
+
+def test_MiniScale(mini, image_mock):
+    ts = ons.MiniScale()
+    assert ts.tilesize == 1000
+    assert ts.size_in_meters == 100000
+    assert set(ts.filenames) == {"mini_one.tif", "mini_two.tif"}
+    ts.filename = "mini_two.tif"
+    assert ts.filename == "mini_two.tif"
+
+    tile = ts("SE 1234 43231")
+    image_mock.open.assert_called_with(os.path.join("dirtwo", "mini_two.tif"))
+    image = image_mock.open.return_value
+    image.crop.assert_called_with((4000,8000,5000,9000))
+    assert tile is image.crop.return_value
+
+def test_MiniScale_cache(mini, image_mock):
+    ts = ons.MiniScale()
+    ts.filename = "mini_two.tif"
+    tile = ts("SE 1234 43231")
+    image_mock.reset_mock()
+    ts("SD 1 2")
+    assert image_mock.open.call_args_list == []
+
+    ts.filename = "mini_one.tif"
+    ts("SD 1 2")
+    image_mock.open.assert_called_with(os.path.join("dirone", "mini_one.tif"))
 
 def test_Extent_construct():
     ons.Extent(429383, 430000, 434363, 440000)
@@ -163,3 +242,50 @@ def test_Plotter_as_one_image(source, image_mock):
         mock.call(source.return_value, (0, 2000)),
         mock.call(source.return_value, (0, 0))
         ]
+
+def test_Plotter_plot(source, image_mock):
+    ex = ons.Extent(1100, 1900, 4200, 5500)
+    plotter = ons.Plotter(ex, source)
+    ax = mock.Mock()
+    plotter.plot(ax, bob="fish")
+
+    assert source.call_args_list == [
+        mock.call("SV 1000 4000"), mock.call("SV 1000 5000") ]
+    assert ax.imshow.call_args_list == [
+        mock.call(image_mock.new.return_value, interpolation="lanczos", extent=(1000, 2000, 4000, 6000), bob="fish"),
+        ]
+
+def test_Plotter_ignore_errors(source, image_mock):
+    source.side_effect = Exception
+    ex = ons.Extent(1100, 1900, 4200, 5500)
+    plotter = ons.Plotter(ex, source)
+    ax = mock.Mock()
+    plotter.plotlq(ax, bob="fish")
+
+    assert ax.imshow.call_args_list == [
+        mock.call(source.blank.return_value, interpolation="lanczos", extent=(1000, 2000, 4000, 5000), bob="fish"),
+        mock.call(source.blank.return_value, interpolation="lanczos", extent=(1000, 2000, 5000, 6000), bob="fish")
+        ]
+
+def test_TileSplitter(source):
+    source.tilesize = 1000
+    source.size_in_meters = 500
+    with pytest.raises(ValueError):
+        ons.TileSplitter(source, 3)
+
+    ts = ons.TileSplitter(source, 500)
+    assert ts.tilesize == 500
+    assert ts.size_in_meters == 250
+
+    tile = ts("SV 1000 4000")
+    assert source.call_args_list == [mock.call("SV 1000 4000")]
+    image = source.return_value
+    assert image.crop.call_args_list == [mock.call((0,0,500,500)),
+        mock.call((0,500,500,1000)), mock.call((500,0,1000,500)),
+        mock.call((500,500,1000,1000))]
+    assert tile is image.crop.return_value
+
+    # Should be cached...
+    source.reset_mock()
+    tile = ts("SV 1250 4000")
+    assert source.call_args_list == []

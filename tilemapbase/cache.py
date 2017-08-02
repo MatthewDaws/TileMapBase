@@ -31,7 +31,6 @@ class ConcreteCache():
     """Abstract base class for a class which implements storing and retrieving
     objects.  Each object should be timestamped with its last update time.
     """
-
     def get_from_cache(self, str_request):
         """Return `None` on failure to find.
         
@@ -42,6 +41,17 @@ class ConcreteCache():
     def place_in_cache(self, str_request, obj_as_bytes):
         """Write the object to the cache.  Should use the current time when
         storing the "last update time"."""
+        raise NotImplementedError()
+
+    def query(self):
+        """List all `str_request` objects which are in the cache.
+
+        :return: List of pairs `(str_request, last_update_time)`
+        """
+        raise NotImplementedError()
+
+    def remove(self, str_request):
+        """Remove the item from the cache."""
         raise NotImplementedError()
 
 
@@ -146,7 +156,19 @@ class SQLiteCache(ConcreteCache):
         update_time = _datetime.datetime.strftime(_datetime.datetime.now(), self._ISO_FORMAT)
         data = (str_request, obj_as_bytes, update_time)
         with self.conn:
-            self.conn.execute("INSERT INTO cache(request, data, create_time) VALUES (?,?,?)", data)
+            self.conn.execute("INSERT OR REPLACE INTO cache(request, data, create_time) VALUES (?,?,?)", data)
+
+    def query(self):
+        cursor = self.conn.execute("SELECT request, create_time FROM cache")
+        out = []
+        for row in cursor:
+            update_time = _datetime.datetime.strptime(row[1], self._ISO_FORMAT)
+            out.append((row[0], update_time))
+        return out
+
+    def remove(self, str_request):
+        with self.conn:
+            self.conn.execute("DELETE FROM cache WHERE request=?", (str_request,))
 
     def close(self):
         """Close the underlying database connection."""

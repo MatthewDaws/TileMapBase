@@ -1,3 +1,10 @@
+# 0.3.0
+
+- Working Ordnance Survey tile support
+- More unit tests.
+- Improved cache support
+
+
 # 0.2.0
 
 - More object oriented and immutable interface in "mapping.py"

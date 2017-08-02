@@ -37,6 +37,7 @@ import io as _io
 import requests as _requests
 import PIL.Image as _Image
 import logging as _logging
+import datetime as _datetime
 
 # Singleton
 _sqcache = None
@@ -89,6 +90,89 @@ def _get_cache():
     return _sqcache
 
 
+class Cache(_cache.ConcreteCache):
+    """A friendly wrapper around our cache, which decodes the key names.
+    For this class, "request strings" are tuples of the form
+    `(name, x, y, zoom)`.
+    """
+    def __init__(self, delegate):
+        self._delegate = delegate
+
+    @staticmethod
+    def make_request_string(name, x, y, zoom):
+        return "{}#{}#{}#{}".format(name, x, y, zoom)
+
+    @staticmethod
+    def split_request_string(str_request):
+        name, x, y, zoom = str_request.split("#")
+        return name, int(x), int(y), int(zoom)
+
+    def get_from_cache(self, key):
+        return self._delegate.get_from_cache(self.make_request_string(*key))
+
+    def place_in_cache(self, str_request, obj_as_bytes):
+        raise NotImplementedError()
+
+    def query(self):
+        return [(self.split_request_string(sr), ti) 
+            for (sr, ti) in self._delegate.query()]
+
+    def remove(self, key):
+        self._delegate.remove(self.make_request_string(*key))
+
+    def dump(self, dirname):
+        """Dump all the files to the given directory.  The directory should
+        be empty.  The directory structure will be:
+           - dirname
+             - Name of tile provider
+               - Zoom level
+                 - Files in format "x_y.png" or "x_y.jpg" or "x_y"
+
+        We attempt to auto detect PNG and JPG files.
+        """
+        if _os.listdir(dirname) != []:
+            raise Exception("Directory needs to be empty")
+        
+        for (key, _) in self.query():
+            name, x, y, zoom = key
+            filename = _os.path.join(dirname, name)
+            try:
+                _os.mkdir(filename)
+            except:
+                pass
+            filename = _os.path.join(filename, str(zoom))                
+            try:
+                _os.mkdir(filename)
+            except:
+                pass
+            data, _ = self.get_from_cache(key)
+            if data[:4] == b"\x89PNG":
+                ext = ".png"
+            elif data[6:10] == b"JFIF":
+                ext = ".jpg"
+            else:
+                ext = ""
+            filename = _os.path.join(filename, "{}_{}{}".format(x, y, ext))
+            with open(filename, "wb") as f:
+                f.write(data)
+
+    def clean(self, cutoff):
+        """Remove all files from the cache which were written before the
+        cutoff.
+
+        :param cutoff: Datetime
+        """
+        query = list(self.query())
+        for (key, time) in query:
+            if time < cutoff:
+                self.remove(key)
+
+
+def get_cache():
+    """Get access to the underlying DB cache.  For advanced usage only."""
+    return Cache(_get_cache())
+
+
 class _TilesExecutor(_cache.Executor):
     """Private class to run the HTTP request."""
     def __init__(self, parent):
@@ -106,6 +190,7 @@ class _TilesExecutor(_cache.Executor):
 
 class Tiles():
     """Class to fetch a tile as an image; transparently handles caching issues.
+    Tiles will be expired from the cache after 2 months.
     
     :param request_string: A string which when used with `format` will give
       a well-formed URL for the tile.  For example, for standard OSM this is
@@ -137,8 +222,11 @@ class Tiles():
         tile = self._get_cache().fetch(self._request_string(x, y, zoom))
         if tile is None:
             return None
-        fp = _io.BytesIO(tile)
-        return _Image.open(fp)
+        try:
+            fp = _io.BytesIO(tile)
+            return _Image.open(fp)
+        except:
+            raise RuntimeError("Failed to decode data for {} - {}x{} @ {} zoom".format(self.name, x, y, zoom))
 
     @property
     def maxzoom(self):
@@ -153,7 +241,7 @@ class Tiles():
     def _request_string(self, x, y, zoom):
         """Encodes the tile coords, zoom, and name into a string for the
         database."""
-        return "{}#{}#{}#{}".format(self.name, x, y, zoom)
+        return Cache.make_request_string(self.name, x, y, zoom)
 
     def _request_http(self, request_string):
         parts = request_string.split("#")
@@ -168,6 +256,7 @@ class Tiles():
             dbcache = _get_cache()
             executor = _TilesExecutor(self)
             self._cache = _cache.Cache(executor, dbcache)
+            self._cache.expire_time = _datetime.timedelta(days=60)
         return self._cache
 
 

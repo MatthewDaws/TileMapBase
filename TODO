@@ -1,7 +1,2 @@
-- Add some methods to query / extract / clean the DB cache
-- More tests!
-- OS raster data support
-  - Making processes here...
-  - Add ability to interrogate as to which tiles we've found...
-  - Provide a way to "chop up" the tiles to smaller tiles...
-    (Does this give better performance?)
+- If a tile download goes wrong, it's possible to get a non-image file stored in the
+cache.  We might want to think about automatically removing such cached objects?

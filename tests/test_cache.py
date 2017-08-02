@@ -99,7 +99,7 @@ def test_database_exists():
     finally:
         os.remove("test.db")
 
-def test_sqcache_create(db_cache):
+def test_sqcache_emplace(db_cache):
     assert(db_cache.get_from_cache("spam") is None)
 
     now = datetime.datetime(2016,4,10,12,30)
@@ -113,3 +113,40 @@ def test_sqcache_create(db_cache):
         db_cache.place_in_cache("spam1", b"eggs1")
         assert(db_cache.get_from_cache("spam") == (b"eggs", now))
         assert(db_cache.get_from_cache("spam1") == (b"eggs1", now))
+
+def test_sqcache_query(db_cache):
+    assert db_cache.query() == []
+
+    now = datetime.datetime.now()
+    db_cache.place_in_cache("spam", b"eggs")
+    
+    q = db_cache.query()
+    assert len(q) == 1
+    assert q[0][0] == "spam"
+    assert abs((q[0][1] - now).total_seconds()) < 1
+
+    db_cache.place_in_cache("spam1", b"eggs")
+    q = db_cache.query()
+    assert len(q) == 2
+    assert set(name for name, _ in q) == {"spam", "spam1"}
+
+def test_sqcache_update(db_cache):
+    db_cache.place_in_cache("spam", b"eggs")
+    q = db_cache.query()
+    assert len(q) == 1
+    assert q[0][0] == "spam"
+
+    db_cache.place_in_cache("spam", b"eggs")
+    q = db_cache.query()
+    assert len(q) == 1
+    assert q[0][0] == "spam"
+
+def test_sqcache_remove(db_cache):
+    db_cache.place_in_cache("spam", b"eggs")
+    db_cache.place_in_cache("spam1", b"eggs")
+    assert len(db_cache.query()) == 2
+
+    db_cache.remove("spam")
+    q = db_cache.query()
+    assert len(q) == 1
+    assert q[0][0] == "spam1"

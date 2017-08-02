@@ -1,6 +1,6 @@
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
-from .tiles import init
+from .tiles import init, get_cache
 from .mapping import project, to_lonlat, Extent, Plotter, extent_from_frame
 from .utils import start_logging
 
