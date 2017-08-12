@@ -7,7 +7,7 @@ def find_version():
             if line.startswith("__version__"):
                 start = line.index('"')
                 end = line[start+1:].index('"')
-                return line[start+1:end]
+                return line[start+1:][:end]
 
 setup(
     name = 'tilemapbase',

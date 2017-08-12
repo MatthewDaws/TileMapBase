@@ -14,6 +14,11 @@ Pure python.  Uses [requests](http://docs.python-requests.org/en/master/) to mak
 
     python setup.py install
 
+or directly from GitHub:
+
+    pip install https://github.com/MatthewDaws/TileMapBase/zipball/master
+
+(PyPi to follow).
 
 ## Example
 
