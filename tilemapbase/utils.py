@@ -68,8 +68,8 @@ class Cache(_collections.UserDict):
 
 class ImageCache(Cache):
     """A subclass of :class:`Cache` which supports compressing :mod:`Pillow`
-    images using `bzip2`.  For map tiles, this can save substantial amounts of
-    memory.
+    images using `bzip2`.  For map tiles, this can save memory.  In practise,
+    it is very slow...
     
     Any input object supporting a method `tobytes` will be compressed.  Any
     `bytes` object will be decompressed.

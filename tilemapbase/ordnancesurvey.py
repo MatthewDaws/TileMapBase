@@ -18,6 +18,14 @@ We also support some large scale maps:
   "MiniScale...tif"
 - "OverView" is a single file showing all of the UK and nearby Europe.
 
+Finally, we suppose some tiles which are not open data, but may be available
+to you (e.g. if you work in a UK university).
+
+- "25k Raster Tiles" have file names like "se00.tif", i.e. the same as
+  VectorMap District".  These tiles are the same as the excellent OS Explorer
+  paper maps.
+- "MasterMap" tiles, which are extremely detailed 1km square tiles.
+
 The Ordnance Survey National Grid is, briefly, the projection epsg:4326.
 
 - However, the "origin" is taken to be (-1,000,000, -500,000)
@@ -50,7 +58,7 @@ import PIL.Image as _Image
 # For MiniScale images
 _Image.MAX_IMAGE_PIXELS = 91000000
 from .mapping import _BaseExtent
-from .utils import ImageCache as _Cache
+from .utils import Cache as _Cache
 
 # Singletons
 _lookup = None
@@ -120,7 +128,7 @@ def _coords_to_code_grid_residual(x, y):
     x500, y500 = _math.floor(x / 500000), _math.floor(y / 500000)
     index = (2 + x500) + (3 - y500) * 5
     if index < 0 or index >= 25:
-        raise ValueError()
+        raise ValueError("Coordinates out of range of National Grid.")
     grid_code = codes[index]
     
     x, y = x - 500000 * x500, y - 500000 * y500
@@ -156,7 +164,6 @@ def os_national_grid_to_coords(grid_position):
         raise ValueError("Should be a grid reference like 'SE 12345 12345'.")
 
 
-
 ##### Tile providers #####
 
 class TileNotFoundError(Exception):
@@ -177,7 +184,11 @@ class TileSource():
 
     def __call__(self, grid_position):
         """Fetch a tile.  Raises :class:`TileNotFoundError` with a suitable
-        error message on error.
+        error message on error.  We pass in a OS National Grid code position,
+        and return the tile which contains this coordinate.  The
+        :class:`Plotter` requires that each tile represents a square of size
+        :attr:`size_in_meters` from offsets which have coordinates `(0,0)`
+        modulo :attr:`size_in_meters`.
         
         :param grid_position: An OS national grid reference, such as
           "SE 12345 12345".
@@ -199,6 +210,12 @@ class TileSource():
     def blank(self):
         """A blank tile of the correct size."""
         return _Image.new("RGB", (self.tilesize, self.tilesize))
+
+    @property
+    def bounding_box(self):
+        """The standard bounding box.  Not all coordinates will have tiles
+        associated with them."""
+        return (0, 0, 700000, 1300000)
 
 
 class OpenMapLocal(TileSource):
@@ -348,7 +365,7 @@ class _SingleFileSource(TileSource):
 
 
 class MiniScale(_SingleFileSource):
-    """Uses tiles from the OS 250k Raster Maps collection,
+    """Uses tiles from the MiniScale collection,
     https://www.ordnancesurvey.co.uk/business-and-government/products/miniscale.html
 
     This is one of a number of single files of size 7000 x 13000.  We simulate
@@ -379,28 +396,183 @@ class OverView(_SingleFileSource):
     """Uses tiles from the OS 250k Raster Maps collection,
     https://www.ordnancesurvey.co.uk/business-and-government/products/gb-overview-maps.html
 
-    This is one of a number of single files of size 4000 x 3200.  We simulate
-    tiles of size 1000x1000.  See the :attr:`filenames` for options and set
-    :attr:`filename`.
+    This is one of a number of single files of size 4000 x 3200.
+    See the :attr:`filenames` for options and set :attr:`filename`.
+    
+    Coordinates of (0,0) correspond to (1300, 2900).  We simulate tiles of size
+    100x100 to avoid problems at the edges.  You can change this by changing
+    :attr:`tilesize`.
     """
     def __init__(self):
         super().__init__()
+        self._tilesize = 100
 
     name = "overview"
 
     def __call__(self, grid_position):
         x, y = os_national_grid_to_coords(grid_position)
-        tx = _math.floor(x / 100000) * 200 + 1300
-        ty = 2900 - _math.floor(y / 100000) * 200
-        return self._get_image().crop((tx, ty-200, tx+200, ty))
+        tx = _math.floor(x / self.size_in_meters) * self._tilesize + 1300
+        ty = 2900 - _math.floor(y / self.size_in_meters) * self._tilesize
+        return self._get_image().crop((tx, ty - self._tilesize, tx + self._tilesize, ty))
 
     @property
     def tilesize(self):
-        return 200
+        return self._tilesize
+
+    @tilesize.setter
+    def tilesize(self, v):
+        if v != int(v) or v <= 0:
+            raise ValueError()
+        self._tilesize = int(v)
 
     @property
     def size_in_meters(self):
-        return 100000
+        return 500 * self._tilesize
+
+    @property
+    def bounding_box(self):
+        return (-1300*500, -300*500, 2700*500, 2900*500)
+
+
+def _separate_init(matcher, start_directory, callback):
+    directories = [start_directory]
+    while len(directories) > 0:
+        dir_name = _os.path.abspath(directories.pop())
+        for entry in _os.scandir(dir_name):
+            if entry.is_dir():
+                directories.append(_os.path.abspath(entry.path))
+            elif entry.is_file() and matcher.match(entry.name):
+                callback(entry.name, dir_name)
+
+
+class TwentyFiveRaster(TileSource):
+    """Uses tiles from the 25k Raster Tiles collection, see
+    https://www.ordnancesurvey.co.uk/business-and-government/products/25k-raster.html
+
+    These are not Open data, and must be initialised using the static method
+    :meth:`init`.
+    """
+    def __init__(self):
+        super().__init__()
+
+    name = "25k_raster"
+
+    @staticmethod
+    def found_tiles():
+        """A list of the "grid codes" we have tiles for."""
+        source = TileSource._get_source(TwentyFiveRaster.name)
+        return set(source.keys())
+
+    @staticmethod
+    def init(start_directory):
+        """Scan a directory for suitable tiles."""
+        matcher = _re.compile("^[a-z]{2}\d\d\.tif$")
+        global _lookup
+        _lookup[TwentyFiveRaster.name] = dict()
+        def callback(filename, dir_name):
+            _lookup[TwentyFiveRaster.name][filename[:2].upper()] = dir_name
+        _separate_init(matcher, start_directory, callback)
+
+    def __call__(self, grid_position):
+        try:
+            code, x, y = grid_position.split()
+            x, y = int(x), int(y)
+        except Exception:
+            raise ValueError("{} appears not to be a valid national grid reference".format(grid_position))
+        if code not in self._source:
+            raise TileNotFoundError("No tiles loaded for square {}".format(code))
+        dirname = self._source[code]
+        squarex = _math.floor(x / 10000)
+        squarey = _math.floor(y / 10000)
+        
+        # Unclear what case the filename is, so check (for *nix systems)
+        filename = "{}{}{}.tif".format(code.lower(), squarex, squarey)
+        return _Image.open(_os.path.join(dirname, filename))
+
+    @property
+    def tilesize(self):
+        return 4000
+
+    @property
+    def size_in_meters(self):
+        return 10000
+
+
+class MasterMap(TileSource):
+    """Uses tiles from the MasterMap Tiles collection.  The tilesize can vary,
+    but defaults to 3200 pixels.  Use :attr:`tilesize` to change.
+
+    These are not Open data, and must be initialised using the static method
+    :meth:`init`.
+    """
+    def __init__(self):
+        super().__init__()
+        self.tilesize = 3200
+
+    name = "MasterMap"
+
+    @staticmethod
+    def found_tiles():
+        """A list of the tiles we have.  At least as my institution provides
+        these, we might have quite a random selection of tiles, so we simply
+        list all tiles.
+
+        :return: A list of tuples `(code, x, y)` where "code" is the grid
+          code (e.g. "SE") and `x` and `y` are two-digit numbers (as strings)
+          giving the 1000m by 1000m square.
+        """
+        out = []
+        for dir_name, files in _lookup[MasterMap.name].items():
+            for f in files:
+                fn = f.split(".")[0]
+                out.append( (fn[:2], fn[2:4], fn[4:]) )
+        return out
+
+    @staticmethod
+    def init(start_directory):
+        """Scan a directory for suitable tiles."""
+        matcher = _re.compile("^[A-Za-z]{2}\d{4}\.(tif|png)$")
+        global _lookup
+        _lookup[MasterMap.name] = dict()
+        def callback(filename, dir_name):
+            d = _lookup[MasterMap.name]
+            if dir_name not in d:
+                d[dir_name] = []
+            d[dir_name].append(filename)
+        _separate_init(matcher, start_directory, callback)
+
+    def _find_filename(self, filename):
+        global _lookup
+        for dir_name, files in _lookup[MasterMap.name].items():
+            for f in files:
+                fn = f.split(".")[0]
+                if fn.upper() == filename.upper():
+                    return dir_name, f
+        raise TileNotFoundError("No file found matching '{}'".format(filename))
+
+    def __call__(self, grid_position):
+        try:
+            code, x, y = grid_position.split()
+            x, y = int(x), int(y)
+        except Exception:
+            raise ValueError("{} appears not to be a valid national grid reference".format(grid_position))
+        squarex = _math.floor(x / 1000)
+        squarey = _math.floor(y / 1000)
+        filename = "{}{}{}".format(code, squarex, squarey)
+        dirname, actual_name = self._find_filename(filename)
+        return _Image.open(_os.path.join(dirname, actual_name))
+
+    @property
+    def tilesize(self):
+        return self._tilesize
+
+    @tilesize.setter
+    def tilesize(self, v):
+        self._tilesize = v
+
+    @property
+    def size_in_meters(self):
+        return 1000
 
 
 class TileSplitter(TileSource):
@@ -417,7 +589,7 @@ class TileSplitter(TileSource):
             raise ValueError("Cannot chop tiles of size {} into {}".format(source.tilesize, newsize))
         self._scale = source.tilesize // newsize
         self._source = source
-        self._cache = _Cache(2 * self._scale * self._scale)
+        self._cache = _Cache(16 * self._scale * self._scale)
 
     def __call__(self, grid_position):
         try:
@@ -456,6 +628,43 @@ class TileSplitter(TileSource):
     def size_in_meters(self):
         return self._source.size_in_meters / self._scale
 
+    @property
+    def bounding_box(self):
+        return self._source.bounding_box
+
+
+class TileScalar(TileSource):
+    """Compose with another :class:`TileSource` and dynamically generate
+    resized tiles, using `PIL.Image`, internally caching the results.
+    
+    :param source: The parent :class:`TileSource`.
+    :param newsize: The size of the tiles to be generated.
+    """
+    def __init__(self, source, newsize):
+        self._delegate = source
+        self._size = newsize
+        self._cache = _Cache(16)
+
+    def __call__(self, grid_position):
+        if grid_position in self._cache:
+            return self._cache[grid_position]
+        tile = self._delegate(grid_position)
+        tile = tile.convert("RGB").resize((self.tilesize, self.tilesize), _Image.LANCZOS)
+        self._cache[grid_position] = tile
+        return tile
+
+    @property
+    def tilesize(self):
+        return self._size
+
+    @property
+    def size_in_meters(self):
+        return self._delegate.size_in_meters
+
+    @property
+    def bounding_box(self):
+        return self._delegate.bounding_box
+
 
 ##### Extent and plotting #####
 
@@ -473,8 +682,6 @@ class Extent(_BaseExtent):
     """
     def __init__(self, xmin, xmax, ymin, ymax):
         super().__init__(xmin, xmax, ymin, ymax)
-        if not (-1000000 <= xmin and xmax < 1500000 and -500000 < ymin and ymax < 2000000):
-            raise ValueError("Not with range")
         self.project = self._project
 
     @property
@@ -690,3 +897,8 @@ if _pyproj is not None:
 def project(longitude, latitude):
     global _bng, _wgs84
     return _pyproj.transform(_wgs84, _bng, longitude, latitude)
+
+def to_lonlat(x, y):
+    global _bng, _wgs84
+    return _pyproj.transform(_bng, _wgs84, x, y)
+    

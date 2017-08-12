@@ -2,13 +2,17 @@ import pytest
 import unittest.mock as mock
 
 import tilemapbase.ordnancesurvey as ons
-import os
+import os, re
 
 def test_project():
     assert ons.project(-1.55532, 53.80474) == pytest.approx((429383.15535285, 434363.0962841))
     assert ons.project(-5.71808, 50.06942) == pytest.approx((134041.0757941, 25435.9074222))
     assert ons.project(-3.02516, 58.64389) == pytest.approx((340594.489913, 973345.118179))
-    
+
+def test_to_latlon():
+    assert ons.to_lonlat(429383.15535285, 434363.0962841) == pytest.approx((-1.55532, 53.80474))
+    assert ons.to_lonlat(134041.0757941, 25435.9074222) == pytest.approx((-5.71808, 50.06942))
+
 def test_to_os_national_grid():
     assert ons.to_os_national_grid(-1.55532, 53.80474) == ("SE 29383 34363",
         pytest.approx(0.155352845), pytest.approx(0.096284069))
@@ -16,6 +20,9 @@ def test_to_os_national_grid():
         pytest.approx(0.0757940984), pytest.approx(0.90742218543))
     assert ons.to_os_national_grid(-3.02516, 58.64389) == ("ND 40594 73345",
         pytest.approx(0.4899132418), pytest.approx(0.118179377))
+
+    with pytest.raises(ValueError):
+        print(ons.to_os_national_grid(-10, 10))
 
 def test_os_national_grid_to_coords():
     assert ons.os_national_grid_to_coords("SE 29383 34363") == (429383, 434363)
@@ -36,6 +43,14 @@ def test_init():
     mini = os.path.abspath(os.path.join("tests", "test_os_map_data", "mini"))
     assert ons._lookup["miniscale"] == {"MiniScale_one.tif" : mini,
         "MiniScale_two.tif" : mini}
+
+def test__separate_init():
+    base = os.path.abspath(os.path.join("tests", "test_os_map_data", "data"))
+    callback = mock.Mock()
+    ons._separate_init(re.compile("^[A-Za-z]{2}\d\d\.tif$"),
+        os.path.join("tests", "test_os_map_data"),
+        callback)
+    assert callback.call_args_list == [mock.call("BG76.tif", os.path.join(base, "one"))]
 
 @pytest.fixture
 def omll():
@@ -103,6 +118,36 @@ def test_VectorMapDistrict(vmd, image_mock):
     assert oml.size_in_meters == 10000
 
 @pytest.fixture
+def tfk():
+    files = {"25k_raster" : {"SE" : "se_dir"}}
+    with mock.patch("tilemapbase.ordnancesurvey._lookup", new=files):
+        yield None
+
+def test_TwentyFiveRaster(tfk, image_mock):
+    oml = ons.TwentyFiveRaster()
+
+    oml("SE 12345 54321")
+    image_mock.open.assert_called_with(os.path.join("se_dir", "se15.tif"))
+
+    oml("SE 16345 54321")
+    image_mock.open.assert_called_with(os.path.join("se_dir", "se15.tif"))
+
+    oml("SE 22345 55321")
+    image_mock.open.assert_called_with(os.path.join("se_dir", "se25.tif"))
+
+    oml("SE 15345 75321")
+    image_mock.open.assert_called_with(os.path.join("se_dir", "se17.tif"))
+
+    with pytest.raises(ons.TileNotFoundError):
+        oml("SF 1456 12653")
+
+    with pytest.raises(ValueError):
+        oml("SF 145612653")
+
+    assert oml.tilesize == 4000
+    assert oml.size_in_meters == 10000
+
+@pytest.fixture
 def tfs():
     files = {"250k_raster" : "250kdir"}
     with mock.patch("tilemapbase.ordnancesurvey._lookup", new=files):
@@ -115,6 +160,52 @@ def test_TwoFiftyScale(tfs, image_mock):
 
     ts("SE 1234 43231")
     image_mock.open.assert_called_with(os.path.join("250kdir", "SE.tif"))
+
+def mock_dir_entry(name):
+    m = mock.Mock()
+    m.is_dir.return_value = False
+    m.is_file.return_value = True
+    m.name = name
+    return m
+
+def test_MasterMap_init():
+    with mock.patch("os.path.abspath") as abspath_mock:
+        abspath_mock.return_value = "spam"
+        with mock.patch("os.scandir") as scandir_mock:
+            scandir_mock.return_value = [mock_dir_entry("eggs"),
+                mock_dir_entry("se3214.tif"), mock_dir_entry("sD1234.tif"),
+                mock_dir_entry("sa6543.png")]
+            
+            ons.MasterMap.init("test")
+
+            abspath_mock.assert_called_with("test")
+            scandir_mock.assert_called_with("spam")
+    
+    assert set(ons.MasterMap.found_tiles()) == {("se", "32", "14"),
+        ("sD", "12", "34"), ("sa", "65", "43")}
+
+    ons._lookup["MasterMap"] == {"spam" : ["se3214.tif", "sD1234.tif", "sa6543.png"]}
+
+@pytest.fixture
+def mm_dir():
+    files = {"MasterMap" : {"spam" : ["sA1342.png"]}}
+    with mock.patch("tilemapbase.ordnancesurvey._lookup", new=files):
+        yield None
+
+def test_MasterMap(mm_dir, image_mock):
+    source = ons.MasterMap()
+    with pytest.raises(ons.TileNotFoundError):
+        source("SD 12345 65432")
+
+    tile = source("SA 13876 42649")
+    assert tile == image_mock.open.return_value
+    image_mock.open.assert_called_with(os.path.join("spam", "sA1342.png"))
+
+    assert source.tilesize == 3200
+    assert source.size_in_meters == 1000
+
+    source.tilesize = 1243
+    assert source.tilesize == 1243
 
 @pytest.fixture
 def mini():
@@ -136,6 +227,8 @@ def test_MiniScale(mini, image_mock):
     image.crop.assert_called_with((4000,8000,5000,9000))
     assert tile is image.crop.return_value
 
+    assert ts.bounding_box == (0, 0, 700000, 1300000)
+
 def test_MiniScale_cache(mini, image_mock):
     ts = ons.MiniScale()
     ts.filename = "mini_two.tif"
@@ -148,12 +241,36 @@ def test_MiniScale_cache(mini, image_mock):
     ts("SD 1 2")
     image_mock.open.assert_called_with(os.path.join("dirone", "mini_one.tif"))
 
-def test_Extent_construct():
-    ons.Extent(429383, 430000, 434363, 440000)
+@pytest.fixture
+def overview():
+    files = {"overview" : {"mini_one.tif" : "dirone", "mini_two.tif" : "dirtwo"}}
+    with mock.patch("tilemapbase.ordnancesurvey._lookup", new=files):
+        yield None
+
+def test_OverView(overview, image_mock):
+    ts = ons.OverView()
+    assert ts.tilesize == 100
+    assert ts.size_in_meters == 50000
+    ts.filename = "mini_one.tif"
+    tile = ts("SD 1 2")
+    assert image_mock.open.call_args_list == [mock.call(os.path.join("dirone", "mini_one.tif"))]
+    assert tile == image_mock.open.return_value.crop.return_value
+
+    # Should cache...
+    image_mock.reset_mock()
+    ts("SD 1 2")
+    assert image_mock.open.call_args_list == []
+
+    ts.tilesize = 50
+    assert ts.size_in_meters == 25000
 
     with pytest.raises(ValueError):
-        ons.Extent(-1200000, 430000, 434363, 440000)
+        ts.tilesize = 5.5
 
+    with pytest.raises(ValueError):
+        ts.tilesize = 0
+
+def test_Extent_construct():
     ex = ons.Extent.from_centre(1000, 0, 1000, 4000)
     assert ex.xrange == (500, 1500)
     assert ex.yrange == (-2000, 2000)
@@ -213,6 +330,18 @@ def source():
     s.size_in_meters = 1000
     s.tilesize = 2000
     return s
+
+def test_TileScalar(source, image_mock):
+    ts = ons.TileScalar(source, 500)
+    assert ts.tilesize == 500
+    assert ts.size_in_meters == 1000
+    assert ts.bounding_box == source.bounding_box
+
+    tile = ts("SN 1234 54321")
+    source.assert_called_with("SN 1234 54321")
+    assert tile == source.return_value.convert.return_value.resize.return_value
+    source.return_value.convert.assert_called_with("RGB")
+    source.return_value.convert.return_value.resize.assert_called_with((500, 500), image_mock.LANCZOS)
 
 def test_Plotter_plotlq(source):
     ex = ons.Extent(1100, 1900, 4200, 5500)
