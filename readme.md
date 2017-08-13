@@ -2,7 +2,8 @@
 
 # TileMapBase
 
-Uses OpenStreetMap tiles, or other tile servers, to produce "basemaps" for use with matplotlib.  Uses a SQLite database to cache the tiles, so you can experiment with map production without re-downloading the same tiles.
+Uses OpenStreetMap tiles, or other tile servers, to produce "basemaps" for use with matplotlib.  Uses a SQLite database to cache the tiles, so you can experiment with map production without re-downloading the same tiles.  Supports Open Data tiles from the
+UK Ordnance Survey.
 
 
 ## Requirements
