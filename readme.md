@@ -20,9 +20,12 @@ or directly from GitHub:
 
 (PyPi to follow).
 
+
 ## Example
 
 - [Example](notebooks/Example.ipynb) - Jupyter notebook showing examples.
+- [Ordnance Survey](notebooks/Ordnance%20Survey.ipynb) - Ordnance survey examples.
+- [Notebooks](notebooks) - Other examples.
 
 
 ## OpenStreetMap data
