@@ -484,8 +484,6 @@ class TwentyFiveRaster(TileSource):
         dirname = self._source[code]
         squarex = _math.floor(x / 10000)
         squarey = _math.floor(y / 10000)
-        
-        # Unclear what case the filename is, so check (for *nix systems)
         filename = "{}{}{}.tif".format(code.lower(), squarex, squarey)
         return _Image.open(_os.path.join(dirname, filename))
 
@@ -827,7 +825,7 @@ class Plotter():
         for x in range(xs, xe+1):
             for y in range(ys, ye+1):
                 xx, yy = self._unquant(x), self._unquant(y)
-                code = coords_to_os_national_grid(xx, yy)
+                code = coords_to_os_national_grid(xx + 0.5, yy + 0.5)
                 tile = self._get(code)
                 ax.imshow(tile, interpolation="lanczos",
                     extent=(xx, xx + self._source.size_in_meters, yy, yy + self._source.size_in_meters),
@@ -855,7 +853,7 @@ class Plotter():
         for x in range(xs, xe+1):
             for y in range(ys, ye+1):
                 xx, yy = self._unquant(x), self._unquant(y)
-                code = coords_to_os_national_grid(xx, yy)
+                code = coords_to_os_national_grid(xx + 0.5, yy + 0.5)
                 tile = self._get(code)
                 xo, yo = (x - xs) * self._source.tilesize, (ye - y) * self._source.tilesize
                 out.paste(tile, (xo, yo))
