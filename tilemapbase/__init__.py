@@ -1,4 +1,4 @@
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 
 from .tiles import init, get_cache
 from .mapping import project, to_lonlat, Extent, Plotter, extent_from_frame

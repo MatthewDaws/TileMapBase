@@ -1,6 +1,6 @@
 import pytest
 import unittest.mock as mock
-import datetime, sqlite3, os
+import datetime, sqlite3, os, threading
 
 import tilemapbase.cache as cache
 
@@ -150,3 +150,16 @@ def test_sqcache_remove(db_cache):
     q = db_cache.query()
     assert len(q) == 1
     assert q[0][0] == "spam1"
+
+def test_sqcache_multi_threading(db_cache):
+    db_cache.place_in_cache("spam", b"eggs")
+
+    barrier = threading.Barrier(2)
+    def task():
+        db_cache.remove("spam")
+        barrier.wait()
+
+    threading.Thread(target=task).start()
+    barrier.wait(timeout=5)
+
+    assert len(db_cache.query()) == 0

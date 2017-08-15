@@ -1,6 +1,12 @@
+# 0.4.2
+
+- Allow SQLite cache to operate across multiple threads.
+
+
 # 0.4.1
 
 - Round tile coordinates correctly in `Plotter`
+
 
 # 0.4.0
 

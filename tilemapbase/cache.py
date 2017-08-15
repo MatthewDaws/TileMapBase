@@ -13,6 +13,7 @@ identifier of the request.  Any object which can be converted to `bytes` by
 import datetime as _datetime
 import sqlite3 as _sqlite3
 import os as _os
+from . import utils as _utils
 
 class Executor():
     """A base class for executing a request, if the cache does not already have
@@ -134,7 +135,11 @@ class SQLiteCache(ConcreteCache):
     def __init__(self, db_filename):
         if not database_exists(db_filename):
             self._make_database(db_filename)
-        self.conn = _sqlite3.connect(db_filename)
+        self._filename = db_filename
+        self._connection_provider = _utils.PerThreadProvider(self._new)
+
+    def _new(self):
+        return _sqlite3.connect(self._filename)
 
     def _make_database(self, db_filename):
         conn = _sqlite3.connect(db_filename)
@@ -146,7 +151,8 @@ class SQLiteCache(ConcreteCache):
     _ISO_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
     def get_from_cache(self, str_request):
-        row = self.conn.execute("SELECT data, create_time FROM cache WHERE request=?", (str_request,)).fetchone()
+        conn = self._connection_provider.get()
+        row = conn.execute("SELECT data, create_time FROM cache WHERE request=?", (str_request,)).fetchone()
         if row is None:
             return None
         update_time = _datetime.datetime.strptime(row[1], self._ISO_FORMAT)
@@ -155,11 +161,12 @@ class SQLiteCache(ConcreteCache):
     def place_in_cache(self, str_request, obj_as_bytes):
         update_time = _datetime.datetime.strftime(_datetime.datetime.now(), self._ISO_FORMAT)
         data = (str_request, obj_as_bytes, update_time)
-        with self.conn:
-            self.conn.execute("INSERT OR REPLACE INTO cache(request, data, create_time) VALUES (?,?,?)", data)
+        with self._connection_provider.get() as conn:
+            conn.execute("INSERT OR REPLACE INTO cache(request, data, create_time) VALUES (?,?,?)", data)
 
     def query(self):
-        cursor = self.conn.execute("SELECT request, create_time FROM cache")
+        conn = self._connection_provider.get()
+        cursor = conn.execute("SELECT request, create_time FROM cache")
         out = []
         for row in cursor:
             update_time = _datetime.datetime.strptime(row[1], self._ISO_FORMAT)
@@ -167,9 +174,9 @@ class SQLiteCache(ConcreteCache):
         return out
 
     def remove(self, str_request):
-        with self.conn:
-            self.conn.execute("DELETE FROM cache WHERE request=?", (str_request,))
+        with self._connection_provider.get() as conn:
+            conn.execute("DELETE FROM cache WHERE request=?", (str_request,))
 
     def close(self):
-        """Close the underlying database connection."""
-        self.conn.close()
+        """Close the underlying database connection (for this thread)."""
+        self._connection_provider.get().close()

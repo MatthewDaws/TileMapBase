@@ -3,6 +3,8 @@ import unittest.mock as mock
 
 import tilemapbase.utils as utils
 import PIL.Image
+import threading
+import time
 
 def test_logging():
     with mock.patch("sys.__stdout__") as stdmock:
@@ -77,3 +79,33 @@ def test_ImageCache(random_pal_image):
     assert image.size == random_pal_image.size
     assert image.tobytes() == random_pal_image.tobytes()
     assert image.getpalette() == random_pal_image.getpalette()
+
+def test_PerThreadProvider():
+    count = 0
+    def factory():
+        nonlocal count
+        count += 1
+        return count
+    ptp = utils.PerThreadProvider(factory)
+    assert ptp.get() == 1
+    assert ptp.get() == 1
+
+    barrier = threading.Barrier(2)
+    def test():
+        assert ptp.get() == 2
+        barrier.wait()
+    threading.Thread(target=test).start()
+    assert len(ptp.active_objects()) == 2
+    barrier.wait()
+
+    called = False
+    def dest(a):
+        assert a == 2
+        nonlocal called
+        called = True
+    ptp.set_destructor(dest)
+
+    time.sleep(0.5)
+    assert ptp.get() == 1
+    assert len(ptp.active_objects()) == 1
+    assert called

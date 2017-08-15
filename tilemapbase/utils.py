@@ -12,6 +12,7 @@ Some utility functions.
 import collections as _collections
 import bz2 as _bz2
 import PIL.Image as _Image
+import threading as _threading
 
 def start_logging():
     """Set the logging system to log to the (real) `stdout`.  Suitable for
@@ -107,4 +108,41 @@ class ImageCache(Cache):
             image.frombytes(data)
             value = image
         return value
+
+class PerThreadProvider():
+    """Using a Factory, provide objects for which there must be one per
+    thread.  Contains caching and clean-up code.
     
+    :param factory: A callable to be invoked to generate a new object.
+    """
+    def __init__(self, factory):
+        self._factory = factory
+        self._cache = dict()
+        self._desc = None
+
+    def get(self):
+        """Return a cached instance of the `object`, or if this is a new
+        thread, build an new object and return it."""
+        self._clean()
+        our_id = _threading.get_ident() 
+        if our_id not in self._cache:
+            self._cache[our_id] = self._factory()
+        return self._cache[our_id]
+
+    def _clean(self):
+        active_ids = {thread.ident for thread in _threading.enumerate()}
+        our_ids = set(self._cache.keys())
+        our_ids.difference_update(active_ids)
+        for thread_id in our_ids:
+            if self._desc is not None:
+                self._desc(self._cache[thread_id])
+            del self._cache[thread_id]
+
+    def active_objects(self):
+        """List of active objects"""
+        return list(self._cache.values())
+
+    def set_destructor(self, destructor):
+        """Set a callable to be invoke on each `object` before it is
+        cleared from the cache."""
+        self._desc = destructor
