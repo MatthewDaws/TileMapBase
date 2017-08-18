@@ -1,3 +1,13 @@
+# 0.4.3
+
+- Add Extent static constructors from epsg:3857 coords
+- Work to allow uploading to PyPi:
+    - Download and install `pandoc`
+    - `pip install pyandoc`
+    - `python setup.py sdist`
+    - `twine upload --repository pypitest dist/*`
+    - Test: `pip install --index-url https://test.pypi.org/simple/ tilemapbase`
+
 # 0.4.2
 
 - Allow SQLite cache to operate across multiple threads.

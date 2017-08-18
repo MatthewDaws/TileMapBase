@@ -219,11 +219,28 @@ class Extent(_BaseExtent):
         return Extent.from_centre(x, y, xsize, ysize, aspect)
         
     @staticmethod
+    def from_centre_3857(x, y, xsize=None, ysize=None, aspect=1.0):
+        """Construct a new instance centred on the given location with a given
+        width and/or height.  If only one of the width or height is specified,
+        the aspect ratio is used.
+        """
+        x, y = _from_3857(x, y)
+        ex = Extent.from_centre(x, y, xsize, ysize, aspect)
+        return ex.to_project_3857()
+
+    @staticmethod
     def from_lonlat(longitude_min, longitude_max, latitude_min, latitude_max):
         """Construct a new instance from longitude/latitude space."""
         xmin, ymin = project(longitude_min, latitude_max)
         xmax, ymax = project(longitude_max, latitude_min)
         return Extent(xmin, xmax, ymin, ymax)
+
+    def from_3857(xmin, xmax, ymin, ymax):
+        """Construct a new instance from longitude/latitude space."""
+        xmin, ymin = _from_3857(xmin, ymin)
+        xmax, ymax = _from_3857(xmax, ymax)
+        ex = Extent(xmin, xmax, ymin, ymax)
+        return ex.to_project_3857()
 
     def __repr__(self):
         return "Extent(({},{})->({},{}) projected as {})".format(self.xmin, self.ymin,

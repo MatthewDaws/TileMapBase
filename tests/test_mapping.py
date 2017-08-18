@@ -92,6 +92,19 @@ def test_Extent_from_lonlat():
     assert ex.xrange == pytest.approx((x, xx))
     assert ex.yrange == pytest.approx((yy, y))
 
+def test_Extent_from_3857():
+    x, y = mapping._to_3857(0.2, 0.3)
+    ex = mapping.Extent.from_centre(0.2, 0.3, xsize=0.1).to_project_3857()
+    ex1 = mapping.Extent.from_centre_3857(x, y, xsize=0.1)
+    assert ex1.xrange == pytest.approx(ex.xrange)
+    assert ex1.yrange == pytest.approx(ex.yrange)
+
+    xx, yy = mapping._to_3857(0.25, 0.4)
+    ex = mapping.Extent.from_3857(x, xx, y, yy)
+    ex1 = mapping.Extent(0.2, 0.25, 0.3, 0.4).to_project_3857()
+    assert ex1.xrange == pytest.approx(ex.xrange)
+    assert ex1.yrange == pytest.approx(ex.yrange)
+
 def test_Extent_projection():
     ex = mapping.Extent(0.2, 0.5, 0.3, 0.4)
     ex1 = ex.to_project_3857()

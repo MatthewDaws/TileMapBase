@@ -13,20 +13,22 @@ Pure python.  Uses [requests](http://docs.python-requests.org/en/master/) to mak
 
 ## Install
 
+    pip install tilemapbase
+
+or build from source:
+
     python setup.py install
 
 or directly from GitHub:
 
     pip install https://github.com/MatthewDaws/TileMapBase/zipball/master
 
-(PyPi to follow).
-
 
 ## Example
 
-- [Example](notebooks/Example.ipynb) - Jupyter notebook showing examples.
-- [Ordnance Survey](notebooks/Ordnance%20Survey.ipynb) - Ordnance survey examples.
-- [Notebooks](notebooks) - Other examples.
+- [Example](https://github.com/MatthewDaws/TileMapBase/blob/master/notebooks/Example.ipynb) - Jupyter notebook showing examples.
+- [Ordnance Survey](https://github.com/MatthewDaws/TileMapBase/blob/master/notebooks/Ordnance%20Survey.ipynb) - Ordnance survey examples.
+- [Notebooks](https://github.com/MatthewDaws/TileMapBase/blob/master/notebooks/) - Other examples.
 
 
 ## OpenStreetMap data
