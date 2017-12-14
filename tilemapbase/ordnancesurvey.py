@@ -746,9 +746,13 @@ class Extent(_BaseExtent):
         xc, yc = project(longitude, latitude)
         return self.with_centre(xc, yc)
 
-    def to_aspect(self, aspect):
-        """Return a new instance with the given aspect ratio.  Shrinks the
-        rectangle as necessary."""
+    def to_aspect(self, aspect, shrink=True):
+        """Return a new instance with the given aspect ratio.
+
+        :param shrink: Defaults to `True`, and shrinks the rectangle as
+          neccessary to obtain the required aspect ratio.  Set to `False` to
+          allow enlarging the rectangle, which can lead to invalid extents.
+        """
         return Extent(*self._to_aspect(aspect))
 
     def with_absolute_translation(self, dx, dy):

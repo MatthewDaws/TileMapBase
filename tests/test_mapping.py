@@ -160,6 +160,18 @@ def test_Extent_to_aspect():
     assert ex1.xrange == pytest.approx(ex.xrange)
     assert ex1.yrange == pytest.approx((0.375, 0.325))
 
+    ex1 = ex.to_aspect(3, False)
+    assert ex1.xrange == pytest.approx(ex.xrange)
+    assert ex1.yrange == pytest.approx(ex.yrange)
+
+    ex1 = ex.to_aspect(1, False)
+    assert ex1.xrange == pytest.approx(ex.xrange)
+    assert ex1.yrange == pytest.approx((0.35+0.15, 0.35-0.15))
+
+    ex1 = ex.to_aspect(6, False)
+    assert ex1.xrange == pytest.approx((0.35-0.3, 0.35+0.3))
+    assert ex1.yrange == pytest.approx(ex.yrange)
+
 def test_Extent_with_absolute_translation():
     ex = mapping.Extent(0.2, 0.5, 0.3, 0.4)
     ex1 = ex.with_absolute_translation(0.6, 0.2)

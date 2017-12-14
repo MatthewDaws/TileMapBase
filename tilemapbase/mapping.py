@@ -146,16 +146,23 @@ class _BaseExtent():
         ymin, ymax = y - ysize / 2, y + ysize / 2
         return (xmin, xmax, ymin, ymax)
 
-    def _to_aspect(self, aspect):
+    def _to_aspect(self, aspect, shrink=True):
         """Internal helper method.  Return a new bounding box.
-        Shrinks the rectangle as necessary."""
+        Shrinks / enlarges the rectangle as necessary."""
         width = self._xmax - self._xmin
         height = self._ymax - self._ymin
-        new_xrange = height * aspect
-        new_yrange = height
-        if new_xrange > self.width:
-            new_xrange = width
-            new_yrange = width / aspect
+        if shrink:
+            new_xrange = height * aspect
+            new_yrange = height
+            if new_xrange > width:
+                new_xrange = width
+                new_yrange = width / aspect
+        else:
+            new_xrange = height * aspect
+            new_yrange = height
+            if new_xrange < width:
+                new_xrange = width
+                new_yrange = width / aspect
         midx = (self._xmin + self._xmax) / 2
         midy = (self._ymin + self._ymax) / 2
         return (midx - new_xrange / 2, midx + new_xrange / 2,
@@ -299,10 +306,14 @@ class Extent(_BaseExtent):
         xc, yc = project(longitude, latitude)
         return self.with_centre(xc, yc)
     
-    def to_aspect(self, aspect):
-        """Return a new instance with the given aspect ratio.  Shrinks the
-        rectangle as necessary."""
-        return Extent(*self._to_aspect(aspect), self._project_str)
+    def to_aspect(self, aspect, shrink=True):
+        """Return a new instance with the given aspect ratio.
+
+        :param shrink: Defaults to `True`, and shrinks the rectangle as
+          neccessary to obtain the required aspect ratio.  Set to `False` to
+          allow enlarging the rectangle, which can lead to invalid extents.
+        """
+        return Extent(*self._to_aspect(aspect, shrink), self._project_str)
 
     def with_absolute_translation(self, dx, dy):
         """Return a new instance translated by this amount.  Clips `y` to the

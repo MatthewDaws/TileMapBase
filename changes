@@ -1,3 +1,8 @@
+# 0.4.4
+
+- Add option to `to_expect` method to allow enlarging the rectangle.
+
+
 # 0.4.3
 
 - Add Extent static constructors from epsg:3857 coords
