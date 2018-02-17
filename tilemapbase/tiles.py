@@ -263,6 +263,9 @@ class Tiles():
 """Standard Open Street Map tile server."""
 OSM = Tiles("http://a.tile.openstreetmap.org/{zoom}/{x}/{y}.png", "OSM")
 
+"""Humanitarian Open Street Map tile server."""
+OSM_Humanitarian = Tiles("http://a.tile.openstreetmap.fr/hot/{zoom}/{x}/{y}.png ", "OSM_HUMANITARIAN")
+
 """Stamen, Toner, Standard."""
 Stamen_Toner = Tiles("http://tile.stamen.com/toner/{zoom}/{x}/{y}.png", "STAMEN_TONER")
 
