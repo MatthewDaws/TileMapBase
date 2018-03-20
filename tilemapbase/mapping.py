@@ -468,7 +468,7 @@ class Plotter():
         size = self._tile_provider.tilesize
         xs = size * (self.xtilemax + 1 - self.xtilemin)
         ys = size * (self.ytilemax + 1 - self.ytilemin)
-        out = _Image.new("RGB", (xs, ys))
+        out = _Image.new("RGBA", (xs, ys))
         for x in range(self.xtilemin, self.xtilemax + 1):
             for y in range(self.ytilemin, self.ytilemax + 1):
                 tile = self._tile_provider.get_tile(x, y, self.zoom)
