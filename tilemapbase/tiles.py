@@ -182,7 +182,12 @@ class _TilesExecutor(_cache.Executor):
     def fetch(self, request):
         url = self.parent._request_http(request)
         self.logger.info("Requesting %s", url)
-        response = _requests.get(url)
+        # TODO: I didn't understand the default value of headers.
+        #       So not to rely on any, avoid setting it if unset.
+        if self.parent.headers is not None:
+            response = _requests.get(url, headers=self.parent.headers)
+        else:
+            response = _requests.get(url)
         if not response.ok:
             raise IOError("Failed to download {}.  Got {}".format(url, response))
         return response.content
@@ -199,10 +204,12 @@ class Tiles():
       unique, as also used by the cache.
     :param tilesize: The size of the (square) tiles, defaults to 256.
     :param maxzoom: The maximum tile zoom level, defaults to 19.
+    :param headers: Dictionary of http headers for server requests
     """
-    def __init__(self, request_string, source_name, tilesize=256, maxzoom = 19):
+    def __init__(self, request_string, source_name, tilesize=256, maxzoom = 19, headers = None):
         self.request = request_string
         self.name = source_name
+        self.headers = headers
         self._maxzoom = maxzoom
         self._tilesize = tilesize
         self._cache = None
