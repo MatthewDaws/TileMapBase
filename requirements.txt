@@ -1,5 +1,5 @@
 # Only for testing
-pytest
+pytest>=3.6
 codecov
 pytest-cov
 
