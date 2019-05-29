@@ -55,7 +55,7 @@ def test_OSM(get, sqcache):
     sqcache.get_from_cache.return_value = None
     get.return_value = Response(True, None)
 
-    tiles.OSM.get_tile(5,10,20)
+    tiles.build_OSM().get_tile(5,10,20)
 
     assert(get.call_args[0][0] == "http://a.tile.openstreetmap.org/20/5/10.png")
 

@@ -120,8 +120,11 @@ def to_os_national_grid(longitude, latitude):
     return "{} {} {}".format(grid_code, xx, yy), x - xx, y - yy
 
 def _code_grid_residual(longitude, latitude):
-    x, y = project(longitude, latitude)
-    return _coords_to_code_grid_residual(x, y)
+    try:
+        x, y = project(longitude, latitude)
+        return _coords_to_code_grid_residual(x, y)
+    except OverflowError:
+        raise ValueError()
     
 def _coords_to_code_grid_residual(x, y):
     codes = "ABCDEFGHJKLMNOPQRSTUVWXYZ"

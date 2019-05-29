@@ -15,11 +15,14 @@ def test_to_latlon():
 
 def test_to_os_national_grid():
     assert ons.to_os_national_grid(-1.55532, 53.80474) == ("SE 29383 34363",
-        pytest.approx(0.155352845), pytest.approx(0.096284069))
+        #pytest.approx(0.155352845), pytest.approx(0.096284069))
+        pytest.approx(0.15221664), pytest.approx(0.096820819))
     assert ons.to_os_national_grid(-5.71808, 50.06942) == ("SW 34041 25435",
-        pytest.approx(0.0757940984), pytest.approx(0.90742218543))
+        #pytest.approx(0.0757940984), pytest.approx(0.90742218543))
+        pytest.approx(0.073081686), pytest.approx(0.907697877))
     assert ons.to_os_national_grid(-3.02516, 58.64389) == ("ND 40594 73345",
-        pytest.approx(0.4899132418), pytest.approx(0.118179377))
+        #pytest.approx(0.4899132418), pytest.approx(0.118179377))
+        pytest.approx(0.48627711), pytest.approx(0.118587372))
 
     with pytest.raises(ValueError):
         print(ons.to_os_national_grid(-10, 10))
