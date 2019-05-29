@@ -1,3 +1,4 @@
+
 [![Build Status](https://travis-ci.org/MatthewDaws/TileMapBase.svg?branch=master)](https://travis-ci.org/MatthewDaws/TileMapBase) 
 
 # TileMapBase
@@ -36,6 +37,10 @@ or directly from GitHub:
 OpenStreetMap Data is "© OpenStreetMap contributors”, see http://www.openstreetmap.org/copyright
 
 Please remember that tile set usage is subject to constraints: https://operations.osmfoundation.org/policies/tiles/
+
+As of 25/05/2019  [OSM requires a user agent for all requests](https://operations.osmfoundation.org/policies/tiles/) for the examples, here we set a default of:
+
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36', 'Accept-Encoding': 'gzip, deflate', 'Accept': '*/*', 'Connection': 'keep-alive'
 
 ## Ordnance Survery data
 

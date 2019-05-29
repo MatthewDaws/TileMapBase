@@ -267,11 +267,18 @@ class Tiles():
         return self._cache
 
 
-"""Standard Open Street Map tile server."""
-OSM = Tiles("http://a.tile.openstreetmap.org/{zoom}/{x}/{y}.png", "OSM")
+"""We have to have functions for OSM realted requests so users can pass their own
+user agent strings
+"""
+def build_OSM(headers=None):
+    """Standard Open Street Map tile server."""
+    OSM = Tiles("http://a.tile.openstreetmap.org/{zoom}/{x}/{y}.png", "OSM", headers=headers)
+    return OSM
 
-"""Humanitarian Open Street Map tile server."""
-OSM_Humanitarian = Tiles("http://a.tile.openstreetmap.fr/hot/{zoom}/{x}/{y}.png ", "OSM_HUMANITARIAN")
+def build_OSM_Humanitarian(headers=None):
+    """Humanitarian Open Street Map tile server."""
+    OSM_Humanitarian = Tiles("http://a.tile.openstreetmap.fr/hot/{zoom}/{x}/{y}.png ", "OSM_HUMANITARIAN", headers=headers)
+    return OSM_Humanitarian
 
 """Stamen, Toner, Standard."""
 Stamen_Toner = Tiles("http://tile.stamen.com/toner/{zoom}/{x}/{y}.png", "STAMEN_TONER")
