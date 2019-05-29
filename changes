@@ -1,3 +1,9 @@
+# 0.4.5
+
+- OSM now needs headers: https://github.com/MatthewDaws/TileMapBase/pull/10
+- https://github.com/MatthewDaws/TileMapBase/issues/11
+
+
 # 0.4.4
 
 - Add option to `to_expect` method to allow enlarging the rectangle.

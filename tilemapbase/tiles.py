@@ -270,12 +270,12 @@ class Tiles():
 """We have to have functions for OSM realted requests so users can pass their own
 user agent strings
 """
-def build_OSM(headers=None):
+def build_OSM(headers={"User-Agent":"TileMapBase"}):
     """Standard Open Street Map tile server."""
     OSM = Tiles("http://a.tile.openstreetmap.org/{zoom}/{x}/{y}.png", "OSM", headers=headers)
     return OSM
 
-def build_OSM_Humanitarian(headers=None):
+def build_OSM_Humanitarian(headers={"User-Agent":"TileMapBase"}):
     """Humanitarian Open Street Map tile server."""
     OSM_Humanitarian = Tiles("http://a.tile.openstreetmap.fr/hot/{zoom}/{x}/{y}.png ", "OSM_HUMANITARIAN", headers=headers)
     return OSM_Humanitarian
