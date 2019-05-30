@@ -16,6 +16,7 @@
     - Download and install `pandoc`
     - `pip install pyandoc`
     - `python setup.py sdist`
+    - `pip install twine`
     - `twine upload --repository pypitest dist/*`
     - Test: `pip install --index-url https://test.pypi.org/simple/ tilemapbase`
 

@@ -55,6 +55,11 @@ http://www.openstreetmap.org/copyright
 Please remember that tile set usage is subject to constraints:
 https://operations.osmfoundation.org/policies/tiles/
 
+-  As of 25/05/2019 `OSM requires a user agent for all
+   requests <https://operations.osmfoundation.org/policies/tiles/>`__,
+   with a warning "Faking another app’s User-Agent WILL get you
+   blocked." We hence default to using "TileMapBase" as a user agent.
+
 Ordnance Survery data
 ---------------------
 
