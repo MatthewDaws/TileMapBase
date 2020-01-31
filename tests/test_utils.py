@@ -14,7 +14,7 @@ def test_logging():
         logger.debug("Fish")
 
         call = stdmock.write.call_args_list[0]
-        assert call[0][0].endswith("DEBUG tilemapbase - Fish")
+        assert call[0][0].endswith("DEBUG tilemapbase - Fish\n")
 
 def test_Cache():
     c = utils.Cache()
