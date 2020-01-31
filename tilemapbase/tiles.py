@@ -192,7 +192,7 @@ class _TilesExecutor(_cache.Executor):
             raise IOError("Failed to download {}.  Got {}".format(url, response))
         #test response content to prevent caching invalid images
         try:
-            return _Image.open(_io.BytesIO(response.content))
+            _Image.open(_io.BytesIO(response.content))
         except:
             raise IOError("Received invalid tile from {}.  Got {}".format(url, response))
         return response.content
