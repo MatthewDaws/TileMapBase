@@ -85,11 +85,11 @@ def init(start_directory):
 
 def _init_scan_one_directory(dir_name):
     global _lookup
-    oml = _re.compile("^[A-Z]{2}\d\d[NESW]{2}\.tif$")
-    vml = _re.compile("^[A-Z]{2}\d\d\.tif$")
-    tfk = _re.compile("^[A-Z]{2}\.tif$")
-    mini = _re.compile("^MiniScale.*\.tif$")
-    over = _re.compile("^GBOver.*\.tif$")
+    oml = _re.compile(r"^[A-Z]{2}\d\d[NESW]{2}\.tif$")
+    vml = _re.compile(r"^[A-Z]{2}\d\d\.tif$")
+    tfk = _re.compile(r"^[A-Z]{2}\.tif$")
+    mini = _re.compile(r"^MiniScale.*\.tif$")
+    over = _re.compile(r"^GBOver.*\.tif$")
     dirs = []
     dir_name = _os.path.abspath(dir_name)
     for entry in _os.scandir(dir_name):
@@ -469,7 +469,7 @@ class TwentyFiveRaster(TileSource):
     @staticmethod
     def init(start_directory):
         """Scan a directory for suitable tiles."""
-        matcher = _re.compile("^[a-z]{2}\d\d\.tif$")
+        matcher = _re.compile(r"^[a-z]{2}\d\d\.tif$")
         global _lookup
         _lookup[TwentyFiveRaster.name] = dict()
         def callback(filename, dir_name):
@@ -532,7 +532,7 @@ class MasterMap(TileSource):
     @staticmethod
     def init(start_directory):
         """Scan a directory for suitable tiles."""
-        matcher = _re.compile("^[A-Za-z]{2}\d{4}\.(tif|png)$")
+        matcher = _re.compile(r"^[A-Za-z]{2}\d{4}\.(tif|png)$")
         global _lookup
         _lookup[MasterMap.name] = dict()
         def callback(filename, dir_name):
