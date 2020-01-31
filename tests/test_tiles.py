@@ -51,6 +51,18 @@ def test_Tiles(get, sqcache, image):
 
 @mock.patch("tilemapbase.tiles._sqcache")
 @mock.patch("requests.get")
+def test_invalid_Tiles(get, sqcache, image):
+    sqcache.get_from_cache.return_value = None
+    get.return_value = Response(True, "abcdef")
+
+    t = tiles.Tiles("example{zoom}/{x}/{y}.jpg", "TEST")
+    with pytest.raises(IOError) as exc_info:
+        x = t.get_tile(10,20,5)
+
+    assert "Received invalid tile" in str(exc_info.value)
+
+@mock.patch("tilemapbase.tiles._sqcache")
+@mock.patch("requests.get")
 def test_OSM(get, sqcache):
     sqcache.get_from_cache.return_value = None
     get.return_value = Response(True, None)
