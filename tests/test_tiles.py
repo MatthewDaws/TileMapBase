@@ -51,7 +51,7 @@ def test_Tiles(get, sqcache, image):
 
 @mock.patch("tilemapbase.tiles._sqcache")
 @mock.patch("requests.get")
-def test_invalid_Tiles(get, sqcache, image):
+def test_invalid_Tiles(get, sqcache):
     sqcache.get_from_cache.return_value = None
     get.return_value = Response(True, "abcdef")
 
@@ -63,9 +63,9 @@ def test_invalid_Tiles(get, sqcache, image):
 
 @mock.patch("tilemapbase.tiles._sqcache")
 @mock.patch("requests.get")
-def test_OSM(get, sqcache):
+def test_OSM(get, sqcache, image):
     sqcache.get_from_cache.return_value = None
-    get.return_value = Response(True, None)
+    get.return_value = Response(True, image)
 
     tiles.build_OSM().get_tile(5,10,20)
 
