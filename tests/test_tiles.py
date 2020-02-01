@@ -59,7 +59,7 @@ def test_invalid_Tiles(get, sqcache):
     with pytest.raises(IOError) as exc_info:
         x = t.get_tile(10,20,5)
 
-    assert "Received invalid tile" in str(exc_info.value)
+    assert("Received invalid tile" in str(exc_info.value))
 
 @mock.patch("tilemapbase.tiles._sqcache")
 @mock.patch("requests.get")
