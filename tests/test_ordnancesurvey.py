@@ -50,7 +50,7 @@ def test_init():
 def test__separate_init():
     base = os.path.abspath(os.path.join("tests", "test_os_map_data", "data"))
     callback = mock.Mock()
-    ons._separate_init(re.compile("^[A-Za-z]{2}\d\d\.tif$"),
+    ons._separate_init(re.compile(r"^[A-Za-z]{2}\d\d\.tif$"),
         os.path.join("tests", "test_os_map_data"),
         callback)
     assert callback.call_args_list == [mock.call("BG76.tif", os.path.join(base, "one"))]
