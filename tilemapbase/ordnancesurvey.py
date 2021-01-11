@@ -891,19 +891,20 @@ class Plotter():
 try:
     import pyproj as _pyproj
 except:
-    import logging
-    logging.getLogger(__name__).error("Failed to load module 'pyproj'.")
     _pyproj = None
 
 if _pyproj is not None:
-    _bng = _pyproj.Proj(init="epsg:27700")
-    _wgs84 = _pyproj.Proj(init="epsg:4326")
+    _wgs84 = _pyproj.CRS("EPSG:4326")
+    _bng = _pyproj.CRS("EPSG:27700")
+    _bng_transformer = _pyproj.Transformer.from_crs("EPSG:4326", "EPSG:27700").transform
+    _bng_inv_transformer = _pyproj.Transformer.from_crs("EPSG:27700", "EPSG:4326").transform
     
 def project(longitude, latitude):
-    global _bng, _wgs84
-    return _pyproj.transform(_wgs84, _bng, longitude, latitude)
+    global _bng_transformer
+    return _bng_transformer(latitude, longitude)
 
 def to_lonlat(x, y):
-    global _bng, _wgs84
-    return _pyproj.transform(_bng, _wgs84, x, y)
+    global _bng_inv_transformer
+    lat, lon = _bng_inv_transformer(x, y)
+    return (lon, lat)
     

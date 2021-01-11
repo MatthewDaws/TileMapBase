@@ -584,22 +584,23 @@ def points_from_frame(frame):
 try:
     import pyproj as _pyproj
 except:
-    import logging
-    logging.getLogger(__name__).error("Failed to load module 'pyproj'.")
     _pyproj = None
 
 if _pyproj is not None:
-    _proj3857 = _pyproj.Proj({"init":"EPSG:3857"})
-    _proj3785 = _pyproj.Proj({"init":"EPSG:3785"})
+    _proj3857 = _pyproj.CRS("EPSG:3857")
+    _proj3785 = _pyproj.CRS("EPSG:3785")
+    _proj4326 = _pyproj.CRS("epsg:4326")
+    _proj_to_3857 = _pyproj.Transformer.from_crs(_proj4326, _proj3857).transform
+    _proj_to_3785 = _pyproj.Transformer.from_crs(_proj4326, _proj3785).transform
 
 def project_3785(longitude, latitude):
     """Project using :module:`pyproj` and EPSG:3785."""
-    global _proj3785
-    xx, yy = _proj3785(longitude, latitude)
+    global _proj_to_3857
+    xx, yy = _proj_to_3857(latitude, longitude)
     return _from_3857(xx, yy)
 
 def project_3857(longitude, latitude):
     """Project using :module:`pyproj` and EPSG:3857."""
-    global _proj3857
-    xx, yy = _proj3857(longitude, latitude)
+    global _proj_to_3785
+    xx, yy = _proj_to_3785(latitude, longitude)
     return _from_3857(xx, yy)
