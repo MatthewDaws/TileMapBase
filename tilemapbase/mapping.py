@@ -32,6 +32,7 @@ This object can then be used to plot the basemap to a `matplotlib` axes object.
 
 import math as _math
 import PIL.Image as _Image
+from pkg_resources import parse_version
 
 _EPSG_RESCALE = 20037508.342789244
 
@@ -505,10 +506,15 @@ def _parse_crs(crs):
     if crs is None:
         return _NATIVE_LONLAT
     try:
-        parts = crs["init"].split(":")
-        if parts[0].upper() != "EPSG":
-            raise ValueError("Unknown projection '{}'".format(crs["init"]))
-        code = int(parts[1])
+        vers = pyproj.__version__
+        #print("Version{}".format(test2))
+        if parse_version(vers) > parse_version('2.6.1.post1'):
+            code = int(crs.to_epsg())
+        else:
+            parts = crs["init"].split(":")
+            if parts[0].upper() != "EPSG":
+                raise ValueError("Unknown projection '{}'".format(crs["init"]))
+            code = int(parts[1])
         if code == _NATIVE_LONLAT:
             return _NATIVE_LONLAT
         if code == 3857 or code == 3785:
