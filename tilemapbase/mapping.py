@@ -362,10 +362,9 @@ class Plotter():
     :param tile_provider: The :class:`tiles.Tiles` object which provides
       tiles.
     :param zoom: If not `None`, then use this zoom level (will be clipped to
-      the best zoom to tile provider can give).
+      the best zoom which the tile provider can give).
     :param width: Optional target width in pixels.
     :param height: Optional target height in pixels.
-    :param tile_size: The (square) tile size, defaults to 256 pixels.
     """
     def __init__(self, extent, tile_provider, zoom=None, width=None, height=None):
         if zoom is None and width is None and height is None:
@@ -455,11 +454,10 @@ class Plotter():
         ax.set(xlim = self.extent.xrange, ylim = self.extent.yrange)
 
     def as_one_image(self, allow_large = False):
-        """Use these settings to assemble tiles into a single image.
+        """Use these settings to assemble tiles into a single image.  Will always
+        return an image which is a whole number of tiles width and height; the
+        exact extent will be a sub-rectangle of the image.
 
-        :param ax: The axes object to plot to.
-        :param tile_provider: The :class:`tiles.Tiles` object which provides
-          tiles.
         :param allow_large: If False (default) then don't use more than 128
           tiles.  A guard against spamming the tile server.tile_provider
           
