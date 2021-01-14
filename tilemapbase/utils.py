@@ -9,7 +9,7 @@ Some utility functions.
 - Cache.
 """
 
-import collections as _collections
+from collections import UserDict as _UserDict
 import bz2 as _bz2
 import PIL.Image as _Image
 import threading as _threading
@@ -30,7 +30,7 @@ def start_logging():
     logger.addHandler(ch)
 
 
-class Cache(_collections.UserDict):
+class Cache(_UserDict):
     """Simple cache.  Implements the dictionary interface.  Objects are evicted
     from the cache by evicting the object least recently accessed.  Ties are
     broken by order of insertion.

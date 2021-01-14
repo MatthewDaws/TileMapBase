@@ -360,3 +360,40 @@ def test_Plotter_plot_epsg(ex, tile_provider, new_image):
     xx, yy = mapping._to_3857(0.5,0.4)
     kwargs["xlim"] == pytest.approx((x,xx))
     kwargs["ylim"] == pytest.approx((yy,y))
+
+
+## Geopands support
+
+def test_parse_crs():
+    code = mapping._parse_crs(None)
+    assert(code==4326)
+    
+    crs = {"init" : "epsg:3857"}
+    code = mapping._parse_crs(crs)
+    assert(code==3857)
+
+    crs = {"init" : "epsg:3785"}
+    code = mapping._parse_crs(crs)
+    assert(code==3857)
+
+    with pytest.raises(ValueError):
+        mapping._parse_crs({"init" : "bob:132"})
+
+    with pytest.raises(ValueError):
+        mapping._parse_crs({"init" : "epsg:132"})
+
+    with pytest.raises(ValueError):
+        mapping._parse_crs({"init" : "boajsg136"})
+
+def test_parse_crs_new_style():
+    crs = mock.Mock()
+    crs.srs = "EPSG:4326"
+    code = mapping._parse_crs(crs)
+    assert(code == 4326)
+
+    crs.srs = "epsg:3785"
+    code = mapping._parse_crs(crs)
+    assert(code==3857)
+
+    with pytest.raises(ValueError):
+        mapping._parse_crs({"bob":"fish"})

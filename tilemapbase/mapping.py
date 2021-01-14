@@ -501,21 +501,32 @@ class Plotter():
 _NATIVE_LONLAT = 4326
 _WEB_MERCATOR = 3857
 
+def _read_crs(crs):
+    try:
+        return crs["init"]
+    except:
+        pass
+    try:
+        return crs.srs
+    except:
+        pass
+    return None
+
 def _parse_crs(crs):
     if crs is None:
         return _NATIVE_LONLAT
-    try:
-        parts = crs["init"].split(":")
-        if parts[0].upper() != "EPSG":
-            raise ValueError("Unknown projection '{}'".format(crs["init"]))
-        code = int(parts[1])
-        if code == _NATIVE_LONLAT:
-            return _NATIVE_LONLAT
-        if code == 3857 or code == 3785:
-            return _WEB_MERCATOR
-        raise ValueError("Unsupported projection '{}'".format(crs["init"]))
-    except Exception:
+    crs = _read_crs(crs)
+    if crs is None:    
         raise ValueError("Unknown crs data: '{}'".format(crs))
+    parts = crs.split(":")
+    if parts[0].upper() != "EPSG":
+        raise ValueError("Unknown projection '{}'".format(crs))
+    code = int(parts[1])
+    if code == _NATIVE_LONLAT:
+        return _NATIVE_LONLAT
+    if code == 3857 or code == 3785:
+        return _WEB_MERCATOR
+    raise ValueError("Unsupported projection '{}'".format(crs))
 
 def extent_from_frame(frame, buffer=0):
     """Minimal interface to compute an :class:`Extent` from a geoPandas
