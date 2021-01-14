@@ -53,6 +53,8 @@ def project(longitude, latitude):
     :return: Coordinates `(x,y)` in the "Web Mercator" projection, normalised
       to be in the range [0,1].
     """
+    if longitude < -180 or longitude > 180 or latitude <= -90 or latitude >= 90:
+        raise ValueError(f"Longitude/Latitude ({longitude}/{latitude}) is out of valid range [-180,180] / [-90,90].  Did you swap them around?")
     xtile = (longitude + 180.0) / 360.0
     lat_rad = _math.radians(latitude)
     ytile = (1.0 - _math.log(_math.tan(lat_rad) + (1 / _math.cos(lat_rad))) / _math.pi) / 2.0

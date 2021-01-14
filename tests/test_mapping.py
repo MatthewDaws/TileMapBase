@@ -33,6 +33,9 @@ def test_project_and_back_to_lonlat():
         assert( lon == pytest.approx(lo) )
         assert( lat == pytest.approx(la) )
 
+def test_project_swapped_lon_lat():
+    with pytest.raises(ValueError):
+        mapping.project(45, 170)
 
 
 ##### Extent class
