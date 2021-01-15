@@ -1,3 +1,9 @@
+# 0.4.7
+
+- Stop noisy logging, see https://github.com/MatthewDaws/TileMapBase/issues/13
+- Parse the new geoPandas CRS code, see https://github.com/MatthewDaws/TileMapBase/issues/19
+- Some error handling around lon/lat, see https://github.com/MatthewDaws/TileMapBase/issues/23
+
 # 0.4.6
 
 - Stop caching invalid responses from remote server: https://github.com/MatthewDaws/TileMapBase/pull/16
@@ -19,11 +25,15 @@
 - Add Extent static constructors from epsg:3857 coords
 - Work to allow uploading to PyPi:
     - Download and install `pandoc`
-    - `pip install pyandoc`
+    - `pip install pypandoc`
+    - Delete the `dist` directory
     - `python setup.py sdist`
     - `pip install twine`
+    -   The following assumes ".pypirc" has been written correctly (see https://packaging.python.org/specifications/pypirc/)
     - `twine upload --repository pypitest dist/*`
-    - Test: `pip install --index-url https://test.pypi.org/simple/ tilemapbase`
+    -   If you get an error, maybe I have already uploaded, and then deleted, the same version.  Try changing the version by adding letters.
+    - Test: ``
+    - More instructions here: https://packaging.python.org/tutorials/packaging-projects/
 
 # 0.4.2
 

@@ -10,14 +10,11 @@ def find_version():
                 return line[start+1:][:end]
 
 try:
-    import pandoc
-    doc = pandoc.Document()
-    with open('readme.md', encoding='utf-8') as f:
-        doc.markdown = f.read().encode("utf-8")
-    with open("README.rst", "wb") as f:
-        f.write(doc.rst)
-except:
+    import pypandoc
+    pypandoc.convert_file("readme.md", "rst", outputfile="README.rst")
+except Exception as ex:
     print("NOT REFRESHING README.rst")
+    print("Exception was", ex)
 
 with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
@@ -27,7 +24,7 @@ setup(
     packages = ['tilemapbase'],
     version = find_version(),
     install_requires = ['requests', 'pillow'],
-    python_requires = '>=3.5',
+    python_requires = '>=3.6',
     description = 'Use OpenStreetMap tiles as basemaps in python / matplotlib',
     long_description = long_description,
     author = 'Matt Daws',
